@@ -10,13 +10,6 @@ existente em `../Projeto1`.
 - origem `http://localhost:5173` incluída em
   `APP_CORS_ALLOWED_ORIGINS` no back-end
 
-## Configuração
-
-Copie `.env.example` para `.env` quando necessário:
-
-```env
-VITE_API_URL=http://localhost:8080
-```
 
 ## Execução
 
