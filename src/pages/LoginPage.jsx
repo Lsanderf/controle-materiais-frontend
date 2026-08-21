@@ -52,8 +52,8 @@ export default function LoginPage() {
           <span className="eyebrow light">Estoque sob controle</span>
           <h1>Materiais no lugar certo, na hora certa.</h1>
           <p>
-            Registre entradas, retiradas e devoluções em uma experiência simples
-            e segura.
+            Consulte entradas e registre retiradas e devoluções em uma
+            experiência simples e segura.
           </p>
         </div>
       </section>

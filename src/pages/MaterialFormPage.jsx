@@ -65,7 +65,7 @@ export default function MaterialFormPage() {
         <div>
           <span className="eyebrow">Materiais</span>
           <h1>{editing ? 'Editar material' : 'Novo material'}</h1>
-          <p>O saldo inicial é zero e só muda por uma movimentação de entrada.</p>
+          <p>O saldo inicial é zero e entradas de estoque vêm da confirmação de NF.</p>
         </div>
       </header>
 

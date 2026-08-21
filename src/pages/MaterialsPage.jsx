@@ -92,24 +92,16 @@ export default function MaterialsPage() {
                   </span>
                 </div>
                 <p>{material.descricao}</p>
-                <div className="resource-actions">
-                  {role === 'ADMIN' && (
+                {role === 'ADMIN' && (
+                  <div className="resource-actions">
                     <Link
                       className="button button-secondary"
                       to={`/materiais/${material.id}/editar`}
                     >
                       Editar
                     </Link>
-                  )}
-                  {role !== 'CONSULTA' && (
-                    <Link
-                      className="text-link"
-                      to={`/movimentacoes/entrada?material=${material.id}`}
-                    >
-                      Registrar entrada
-                    </Link>
-                  )}
-                </div>
+                  </div>
+                )}
               </article>
             ))}
           </div>

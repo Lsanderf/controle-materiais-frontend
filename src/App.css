@@ -47,18 +47,38 @@
   gap: 11px;
 }
 
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  transform: scale(2.0);
+}
+
 .brand-mark {
-  display: inline-grid;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 12px;
-  color: #fff;
-  background: var(--primary);
-  font-size: 0.88rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  width: 48px;
+  height: 48px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  padding: 6px;
+  overflow: hidden;
+
+  background-color: #2563eb;
+  border-radius: 14px;
+}
+
+.brand-name {
+  display: flex;
+  flex-direction: column;
+}
+
+.brand-name strong {
+  font-size: 17px;
+  line-height: 1.2;
 }
 
 .brand > span:last-child {
@@ -67,14 +87,27 @@
   line-height: 1.1;
 }
 
+.brand-name small {
+  margin-top: 2px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
 .brand small {
   margin-top: 3px;
   color: var(--muted);
   font-size: 0.76rem;
 }
 
+.brand.compact .brand-mark {
+  width: 40px;
+  height: 40px;
+  padding: 5px;
+}
+
 .page-content {
   width: 100%;
+  min-width: 0;
   max-width: 1200px;
   margin: 0 auto;
   padding: 24px 16px 104px;
@@ -82,6 +115,7 @@
 
 .page-stack {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   gap: 20px;
 }
@@ -350,6 +384,16 @@
   background: var(--orange-soft);
 }
 
+.badge-rascunho {
+  color: #174b9d;
+  background: var(--primary-soft);
+}
+
+.badge-confirmada {
+  color: #0d704b;
+  background: var(--green-soft);
+}
+
 .stock-pill {
   color: #174b9d;
   background: var(--primary-soft);
@@ -399,6 +443,7 @@
 
 .list-controls {
   display: flex;
+  min-width: 0;
   flex-direction: column;
   align-items: stretch;
   gap: 10px;
@@ -410,10 +455,13 @@
 
 .mobile-card-list {
   display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
   gap: 12px;
 }
 
 .resource-card {
+  min-width: 0;
   padding: 17px;
 }
 
@@ -422,6 +470,10 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.resource-card-heading > div {
+  min-width: 0;
 }
 
 .resource-card h2 {
@@ -440,6 +492,26 @@
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
+}
+
+.resource-card > .inactivation-info {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 0.8rem;
+}
+
+.inactivation-info strong {
+  min-width: 0;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+
+.inactivation-date {
+  white-space: nowrap;
 }
 
 .resource-actions {
@@ -592,6 +664,54 @@ td small {
   flex-direction: column-reverse;
   gap: 10px;
   padding-top: 3px;
+}
+
+.page-actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column-reverse;
+  gap: 10px;
+}
+
+.monospace-cell {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Consolas,
+    'Liberation Mono',
+    monospace;
+  overflow-wrap: anywhere;
+}
+
+.invoice-card .history-details dd {
+  max-width: 62%;
+}
+
+.invoice-items-section {
+  display: grid;
+  gap: 14px;
+}
+
+.invoice-item-list {
+  display: grid;
+  gap: 14px;
+}
+
+.invoice-item-row {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid #edf0f5;
+  border-radius: 10px;
+  background: #fafbfd;
+}
+
+.invoice-material-field {
+  min-width: 0;
+}
+
+.invoice-summary-grid {
+  gap: 12px;
 }
 
 .switch-field {
@@ -1300,8 +1420,23 @@ td small {
     justify-content: flex-end;
   }
 
+  .page-actions {
+    width: auto;
+    flex: 0 0 auto;
+    flex-direction: row;
+  }
+
   .form-actions .button {
     min-width: 150px;
+  }
+
+  .invoice-item-row {
+    grid-template-columns: minmax(230px, 1fr) minmax(120px, 0.35fr) minmax(150px, 0.45fr) auto;
+    align-items: end;
+  }
+
+  .invoice-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .stat-grid {

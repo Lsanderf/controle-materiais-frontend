@@ -3,13 +3,6 @@ import { useAuth } from '../context/useAuth';
 
 const movementOptions = [
   {
-    type: 'entrada',
-    title: 'Entrada',
-    description: 'Adicionar materiais recebidos ao estoque.',
-    icon: '＋',
-    className: 'movement-entry',
-  },
-  {
     type: 'retirada',
     title: 'Retirada',
     description: 'Entregar materiais a um funcionário e contrato.',
@@ -35,7 +28,7 @@ export default function MovementsPage() {
         <div>
           <span className="eyebrow">Operações</span>
           <h1>Movimentações</h1>
-          <p>Escolha a operação que deseja registrar.</p>
+          <p>Registre retiradas e devoluções. Recebimentos entram por Nota Fiscal.</p>
         </div>
         <Link className="button button-secondary" to="/movimentacoes/historico">
           Ver histórico
@@ -71,7 +64,7 @@ export default function MovementsPage() {
         <div className="guide-grid">
           <div>
             <span>1</span>
-            <p>Selecione os dados da movimentação.</p>
+            <p>Selecione os dados da retirada ou devolução.</p>
           </div>
           <div>
             <span>2</span>
@@ -79,7 +72,7 @@ export default function MovementsPage() {
           </div>
           <div>
             <span>3</span>
-            <p>O estoque é atualizado pelo servidor.</p>
+            <p>Entradas de estoque são feitas pela confirmação da NF.</p>
           </div>
         </div>
       </section>

@@ -12,6 +12,9 @@ import ContractFormPage from './pages/ContractFormPage';
 import MovementsPage from './pages/MovementsPage';
 import MovementFormPage from './pages/MovementFormPage';
 import HistoryPage from './pages/HistoryPage';
+import NotasFiscaisPage from './pages/NotasFiscaisPage';
+import NotaFiscalFormPage from './pages/NotaFiscalFormPage';
+import NotaFiscalDetailPage from './pages/NotaFiscalDetailPage';
 import UsersPage from './pages/UsersPage';
 import UserFormPage from './pages/UserFormPage';
 import MorePage from './pages/MorePage';
@@ -32,13 +35,11 @@ export default function App() {
           <Route path="/contratos" element={<ContractsPage />} />
           <Route path="/movimentacoes" element={<MovementsPage />} />
           <Route path="/movimentacoes/historico" element={<HistoryPage />} />
+          <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
+          <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
           <Route path="/mais" element={<MorePage />} />
 
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
-            <Route
-              path="/movimentacoes/entrada"
-              element={<MovementFormPage type="ENTRADA" />}
-            />
             <Route
               path="/movimentacoes/retirada"
               element={<MovementFormPage type="RETIRADA" />}
@@ -46,6 +47,11 @@ export default function App() {
             <Route
               path="/movimentacoes/devolucao"
               element={<MovementFormPage type="DEVOLUCAO" />}
+            />
+            <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
+            <Route
+              path="/notas-fiscais/:id/editar"
+              element={<NotaFiscalFormPage />}
             />
           </Route>
 

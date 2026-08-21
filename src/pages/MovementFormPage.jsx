@@ -15,7 +15,6 @@ import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
 
 const descriptions = {
-  ENTRADA: 'Adicione ao estoque os materiais que foram recebidos.',
   RETIRADA: 'Registre a entrega de materiais para uso em um contrato.',
   DEVOLUCAO: 'Registre materiais que retornaram ao estoque.',
 };
@@ -38,14 +37,12 @@ export default function MovementFormPage({ type }) {
 
   const loader = useCallback(
     () =>
-      type === 'ENTRADA'
-        ? materialService.list().then((materials) => [materials, [], []])
-        : Promise.all([
-            materialService.list(),
-            funcionarioService.list(),
-            contratoService.list(),
-          ]),
-    [type],
+      Promise.all([
+        materialService.list(),
+        funcionarioService.list(),
+        contratoService.list(),
+      ]),
+    [],
   );
   const {
     data,
@@ -109,27 +106,25 @@ export default function MovementFormPage({ type }) {
   }, [employeeMovements, selectedContract, selectedMaterial, type]);
 
   const clientError = useMemo(() => {
+    if (!form.funcionarioId) return 'Selecione um funcionario ativo.';
+    if (!form.contratoId) return 'Selecione um contrato ativo.';
     if (!form.materialId) return 'Selecione um material.';
-    if (type !== 'ENTRADA' && !form.funcionarioId)
-      return 'Selecione um funcionário ativo.';
-    if (type !== 'ENTRADA' && !form.contratoId)
-      return 'Selecione um contrato ativo.';
     if (!Number.isInteger(quantity) || quantity <= 0)
-      return 'A quantidade deve ser um número inteiro maior que zero.';
+      return 'A quantidade deve ser um numero inteiro maior que zero.';
     if (quantity > 10000)
-      return 'A quantidade máxima por operação é 10.000.';
+      return 'A quantidade maxima por operacao e 10.000.';
     if (
       type === 'RETIRADA' &&
       selectedMaterial &&
       quantity > selectedMaterial.quantidadeEstoque
     )
-      return 'A quantidade informada ultrapassa o estoque disponível.';
+      return 'A quantidade informada ultrapassa o estoque disponivel.';
     if (
       type === 'DEVOLUCAO' &&
       returnBalance !== null &&
       quantity > returnBalance
     )
-      return 'A devolução ultrapassa a quantidade ainda retirada.';
+      return 'A devolucao ultrapassa a quantidade ainda retirada.';
     return '';
   }, [
     form.contratoId,
@@ -161,20 +156,13 @@ export default function MovementFormPage({ type }) {
     setSaving(true);
     setError(null);
     try {
-      if (type === 'ENTRADA') {
-        await movimentacaoService.createEntry({
-          materialId: Number(form.materialId),
-          quantidade: quantity,
-        });
-      } else {
-        await movimentacaoService.create({
-          funcionarioId: Number(form.funcionarioId),
-          contratoId: Number(form.contratoId),
-          materialId: Number(form.materialId),
-          quantidade: quantity,
-          tipo: type,
-        });
-      }
+      await movimentacaoService.create({
+        funcionarioId: Number(form.funcionarioId),
+        contratoId: Number(form.contratoId),
+        materialId: Number(form.materialId),
+        quantidade: quantity,
+        tipo: type,
+      });
       setConfirming(false);
       setSuccess(`${movementLabel(type)} registrada com sucesso.`);
       setForm({
@@ -197,7 +185,7 @@ export default function MovementFormPage({ type }) {
       (type === 'RETIRADA' ? -quantity : quantity)
     : null;
 
-  if (loading) return <Loading label="Carregando dados da movimentação..." />;
+  if (loading) return <Loading label="Carregando dados da movimentacao..." />;
 
   if (loadError) {
     return (
@@ -213,8 +201,8 @@ export default function MovementFormPage({ type }) {
   if (materials.length === 0) {
     return (
       <EmptyState
-        title="Nenhum material disponível."
-        description="Cadastre um material antes de registrar movimentações."
+        title="Nenhum material disponivel."
+        description="Cadastre um material antes de registrar movimentacoes."
       />
     );
   }
@@ -223,7 +211,7 @@ export default function MovementFormPage({ type }) {
     <div className="page-stack narrow-page">
       <header className="page-heading">
         <div>
-          <span className="eyebrow">Movimentações</span>
+          <span className="eyebrow">Movimentacoes</span>
           <h1>Registrar {movementLabel(type).toLocaleLowerCase('pt-BR')}</h1>
           <p>{descriptions[type]}</p>
         </div>
@@ -232,49 +220,45 @@ export default function MovementFormPage({ type }) {
       <SuccessMessage>{success}</SuccessMessage>
       <ErrorMessage error={error} />
 
-      {type !== 'ENTRADA' && (employees.length === 0 || contracts.length === 0) ? (
+      {employees.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
-          Não há {employees.length === 0 ? 'funcionários' : 'contratos'} ativos
-          disponíveis. Ative ou cadastre o recurso antes de continuar.
+          Nao ha {employees.length === 0 ? 'funcionarios' : 'contratos'} ativos
+          disponiveis. Ative ou cadastre o recurso antes de continuar.
         </div>
       ) : (
         <form className="content-card form-card" onSubmit={prepareConfirmation}>
           <div className="form-grid">
-            {type !== 'ENTRADA' && (
-              <>
-                <label className="field">
-                  <span>Funcionário</span>
-                  <select
-                    value={form.funcionarioId}
-                    onChange={(event) => change('funcionarioId', event.target.value)}
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {employees.map((employee) => (
-                      <option key={employee.id} value={employee.id}>
-                        {employee.nome} — {employee.cargo}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+            <label className="field">
+              <span>Funcionario</span>
+              <select
+                value={form.funcionarioId}
+                onChange={(event) => change('funcionarioId', event.target.value)}
+                required
+              >
+                <option value="">Selecione</option>
+                {employees.map((employee) => (
+                  <option key={employee.id} value={employee.id}>
+                    {employee.nome} - {employee.cargo}
+                  </option>
+                ))}
+              </select>
+            </label>
 
-                <label className="field">
-                  <span>Contrato</span>
-                  <select
-                    value={form.contratoId}
-                    onChange={(event) => change('contratoId', event.target.value)}
-                    required
-                  >
-                    <option value="">Selecione</option>
-                    {contracts.map((contract) => (
-                      <option key={contract.id} value={contract.id}>
-                        {contract.nome}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              </>
-            )}
+            <label className="field">
+              <span>Contrato</span>
+              <select
+                value={form.contratoId}
+                onChange={(event) => change('contratoId', event.target.value)}
+                required
+              >
+                <option value="">Selecione</option>
+                {contracts.map((contract) => (
+                  <option key={contract.id} value={contract.id}>
+                    {contract.nome}
+                  </option>
+                ))}
+              </select>
+            </label>
 
             <label className="field">
               <span>Material</span>
@@ -310,7 +294,7 @@ export default function MovementFormPage({ type }) {
                 required
                 placeholder="0"
               />
-              <small>Máximo de 10.000 unidades por operação.</small>
+              <small>Maximo de 10.000 unidades por operacao.</small>
             </label>
           </div>
 
@@ -319,7 +303,7 @@ export default function MovementFormPage({ type }) {
             selectedContract &&
             selectedMaterial && (
               <div className="balance-info">
-                <span>Quantidade ainda retirada neste vínculo</span>
+                <span>Quantidade ainda retirada neste vinculo</span>
                 <strong>
                   {balanceLoading ? 'Calculando...' : `${Math.max(returnBalance, 0)} un.`}
                 </strong>
@@ -335,7 +319,7 @@ export default function MovementFormPage({ type }) {
               type="submit"
               disabled={Boolean(clientError) || balanceLoading}
             >
-              Revisar movimentação
+              Revisar movimentacao
             </button>
           </div>
         </form>
@@ -354,18 +338,14 @@ export default function MovementFormPage({ type }) {
             <dt>Material</dt>
             <dd>{selectedMaterial?.nome}</dd>
           </div>
-          {type !== 'ENTRADA' && (
-            <>
-              <div>
-                <dt>Funcionário</dt>
-                <dd>{selectedEmployee?.nome}</dd>
-              </div>
-              <div>
-                <dt>Contrato</dt>
-                <dd>{selectedContract?.nome}</dd>
-              </div>
-            </>
-          )}
+          <div>
+            <dt>Funcionario</dt>
+            <dd>{selectedEmployee?.nome}</dd>
+          </div>
+          <div>
+            <dt>Contrato</dt>
+            <dd>{selectedContract?.nome}</dd>
+          </div>
           <div>
             <dt>Estoque atual</dt>
             <dd>{selectedMaterial?.quantidadeEstoque} un.</dd>
@@ -375,12 +355,12 @@ export default function MovementFormPage({ type }) {
             <dd>{quantity} un.</dd>
           </div>
           <div className="summary-total">
-            <dt>Estoque após a operação</dt>
+            <dt>Estoque apos a operacao</dt>
             <dd>{projectedStock} un.</dd>
           </div>
         </dl>
         <p className="dialog-note">
-          O servidor fará a validação definitiva no momento do registro.
+          O servidor fara a validacao definitiva no momento do registro.
         </p>
       </ConfirmDialog>
     </div>

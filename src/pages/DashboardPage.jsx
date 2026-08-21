@@ -41,11 +41,11 @@ export default function DashboardPage() {
       <section className="quick-actions" aria-label="Ações rápidas">
         {canMove && (
           <>
-            <Link className="action-card action-entry" to="/movimentacoes/entrada">
+            <Link className="action-card action-entry" to="/notas-fiscais/nova">
               <span className="action-icon">＋</span>
               <span>
-                <strong>Registrar entrada</strong>
-                <small>Adicionar itens ao estoque</small>
+                <strong>Nova nota fiscal</strong>
+                <small>Receber materiais por NF</small>
               </span>
               <span aria-hidden="true">→</span>
             </Link>

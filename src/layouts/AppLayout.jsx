@@ -1,11 +1,13 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { roleLabel } from '../utils/formatters';
+import telminasIcon from '../assets/telminas-icon.png';
 
 const mainItems = [
   { to: '/dashboard', label: 'Início', icon: '⌂' },
   { to: '/materiais', label: 'Materiais', icon: '▣' },
   { to: '/movimentacoes', label: 'Movimentar', icon: '⇄', end: true },
+  { to: '/notas-fiscais', label: 'Notas fiscais', icon: 'NF' },
   { to: '/movimentacoes/historico', label: 'Histórico', icon: '◷' },
 ];
 
@@ -15,7 +17,9 @@ function NavigationLink({ item, onClick }) {
       to={item.to}
       end={item.end}
       onClick={onClick}
-      className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+      className={({ isActive }) =>
+        isActive ? 'nav-link active' : 'nav-link'
+      }
     >
       <span aria-hidden="true">{item.icon}</span>
       <span>{item.label}</span>
@@ -34,16 +38,26 @@ export default function AppLayout() {
     '/funcionarios': 'Funcionários',
     '/contratos': 'Contratos',
     '/movimentacoes': 'Movimentações',
-    '/movimentacoes/entrada': 'Registrar entrada',
     '/movimentacoes/retirada': 'Registrar retirada',
     '/movimentacoes/devolucao': 'Registrar devolução',
     '/movimentacoes/historico': 'Histórico',
+    '/notas-fiscais': 'Notas fiscais',
+    '/notas-fiscais/nova': 'Nova nota fiscal',
     '/usuarios': 'Usuários',
     '/mais': 'Mais opções',
   };
+
   const pageTitle =
     titles[location.pathname] ??
-    (location.pathname.includes('/editar') ? 'Editar cadastro' : 'Novo cadastro');
+    (location.pathname.startsWith('/notas-fiscais/') &&
+    location.pathname.includes('/editar')
+      ? 'Editar nota fiscal'
+      : location.pathname.startsWith('/notas-fiscais/')
+        ? 'Nota fiscal'
+        : null) ??
+    (location.pathname.includes('/editar')
+      ? 'Editar cadastro'
+      : 'Novo cadastro');
 
   function handleLogout() {
     logout();
@@ -54,10 +68,17 @@ export default function AppLayout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">CM</span>
-          <span>
-            <strong>Controle</strong>
-            <small>de materiais</small>
+          <span className="brand-mark">
+            <img
+              src={telminasIcon}
+              alt="Logo da Telminas"
+              className="brand-logo"
+            />
+          </span>
+
+          <span className="brand-name">
+            <strong>Telminas</strong>
+            <small>Controle de materiais</small>
           </span>
         </div>
 
@@ -65,16 +86,32 @@ export default function AppLayout() {
           {mainItems.map((item) => (
             <NavigationLink item={item} key={item.to} />
           ))}
+
           <p className="nav-section">Cadastros</p>
+
           <NavigationLink
-            item={{ to: '/funcionarios', label: 'Funcionários', icon: '♙' }}
+            item={{
+              to: '/funcionarios',
+              label: 'Funcionários',
+              icon: '♙',
+            }}
           />
+
           <NavigationLink
-            item={{ to: '/contratos', label: 'Contratos', icon: '▤' }}
+            item={{
+              to: '/contratos',
+              label: 'Contratos',
+              icon: '▤',
+            }}
           />
+
           {role === 'ADMIN' && (
             <NavigationLink
-              item={{ to: '/usuarios', label: 'Usuários', icon: '♚' }}
+              item={{
+                to: '/usuarios',
+                label: 'Usuários',
+                icon: '♚',
+              }}
             />
           )}
         </nav>
@@ -84,7 +121,12 @@ export default function AppLayout() {
             <strong>{auth.username}</strong>
             <span>{roleLabel(role)}</span>
           </div>
-          <button type="button" className="text-button" onClick={handleLogout}>
+
+          <button
+            type="button"
+            className="text-button"
+            onClick={handleLogout}
+          >
             Sair
           </button>
         </div>
@@ -93,8 +135,15 @@ export default function AppLayout() {
       <div className="app-main">
         <header className="mobile-header">
           <div className="brand compact">
-            <span className="brand-mark">CM</span>
+            <span className="brand-mark">
+              <img
+                src={telminasIcon}
+                alt="Logo da Telminas"
+                className="brand-logo"
+              />
+            </span>
           </div>
+
           <div>
             <small>Controle de materiais</small>
             <strong>{pageTitle}</strong>
@@ -109,7 +158,14 @@ export default function AppLayout() {
           {mainItems.slice(0, 3).map((item) => (
             <NavigationLink item={item} key={item.to} />
           ))}
-          <NavigationLink item={{ to: '/mais', label: 'Mais', icon: '•••' }} />
+
+          <NavigationLink
+            item={{
+              to: '/mais',
+              label: 'Mais',
+              icon: '•••',
+            }}
+          />
         </nav>
       </div>
     </div>

@@ -30,6 +30,12 @@ export default function MorePage() {
       description: 'Todas as entradas, retiradas e devoluções',
       icon: '◷',
     },
+    {
+      to: '/notas-fiscais',
+      title: 'Notas fiscais',
+      description: 'Recebimento de materiais por NF',
+      icon: 'NF',
+    },
   ];
 
   if (role === 'ADMIN') {
