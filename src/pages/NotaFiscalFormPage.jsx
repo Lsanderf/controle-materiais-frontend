@@ -1,15 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import NotaFiscalBarcodeScanner from '../components/NotaFiscalBarcodeScanner';
 import {
   EmptyState,
   ErrorMessage,
   Loading,
   SuccessMessage,
 } from '../components/Feedback';
+import { useAuth } from '../context/useAuth';
 import { materialService } from '../services/materialService';
 import { notaFiscalService } from '../services/notaFiscalService';
 import {
   buildNotaFiscalPayload,
+  canManageNotaFiscal,
   emptyNotaFiscalForm,
   emptyNotaFiscalItem,
   formatCnpj,
@@ -21,6 +24,7 @@ import {
 export default function NotaFiscalFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { role } = useAuth();
   const editing = Boolean(id);
   const [form, setForm] = useState(emptyNotaFiscalForm);
   const [materials, setMaterials] = useState([]);
@@ -29,6 +33,7 @@ export default function NotaFiscalFormPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
+  const [scannerOpen, setScannerOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -64,6 +69,12 @@ export default function NotaFiscalFormPage() {
     setError(null);
     setSuccess('');
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function fillScannedAccessKey(accessKey) {
+    change('chaveAcesso', accessKey);
+    setScannerOpen(false);
+    setSuccess('Chave de acesso preenchida pelo código de barras.');
   }
 
   function changeItem(index, field, value) {
@@ -176,9 +187,21 @@ export default function NotaFiscalFormPage() {
             />
           </label>
 
-          <label className="field field-wide">
-            <span>Chave de acesso</span>
+          <div className="field field-wide">
+            <div className="field-label-row">
+              <label htmlFor="nota-fiscal-chave-acesso">Chave de acesso</label>
+              {canManageNotaFiscal(role) && (
+                <button
+                  className="text-button barcode-scan-trigger"
+                  type="button"
+                  onClick={() => setScannerOpen(true)}
+                >
+                  Escanear código de barras
+                </button>
+              )}
+            </div>
             <input
+              id="nota-fiscal-chave-acesso"
               value={form.chaveAcesso}
               onChange={(event) => change('chaveAcesso', event.target.value)}
               required
@@ -187,7 +210,7 @@ export default function NotaFiscalFormPage() {
               placeholder="44 digitos da NF-e"
             />
             <small>Use a chave com 44 digitos, com ou sem formatacao.</small>
-          </label>
+          </div>
 
           <label className="field">
             <span>Fornecedor</span>
@@ -341,6 +364,13 @@ export default function NotaFiscalFormPage() {
           </button>
         </div>
       </form>
+
+      {scannerOpen && (
+        <NotaFiscalBarcodeScanner
+          onDetected={fillScannedAccessKey}
+          onCancel={() => setScannerOpen(false)}
+        />
+      )}
     </div>
   );
 }

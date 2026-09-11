@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
+import {
+  InactivationTableValue,
+  MobileInactivationDetails,
+} from '../components/InactivationDetails';
 import StatusFilter from '../components/StatusFilter';
 import {
   EmptyState,
@@ -26,6 +30,7 @@ export default function ContractsPage() {
   const loader = useCallback(() => contratoService.list(), []);
   const {
     data: contracts,
+    setData: setContracts,
     loading,
     error,
     reload,
@@ -44,16 +49,18 @@ export default function ContractsPage() {
     setUpdating(true);
     setActionError(null);
     try {
-      await contratoService.update(selected.id, {
-        nome: selected.nome,
-        descricao: selected.descricao,
-        ativo: !selected.ativo,
-      });
+      const updated = selected.ativo
+        ? await contratoService.deactivate(selected.id)
+        : await contratoService.activate(selected.id);
+      setContracts((current) =>
+        (current ?? []).map((contract) =>
+          contract.id === updated.id ? updated : contract,
+        ),
+      );
       setSuccess(
         `Contrato ${selected.ativo ? 'desativado' : 'ativado'} com sucesso.`,
       );
       setSelected(null);
-      await reload();
     } catch (requestError) {
       setActionError(requestError);
       setSelected(null);
@@ -133,6 +140,7 @@ export default function ContractsPage() {
                   <StatusBadge active={contract.ativo} />
                 </div>
                 <p>{contract.descricao}</p>
+                <MobileInactivationDetails record={contract} />
                 {role === 'ADMIN' && (
                   <div className="resource-actions">
                     <Link
@@ -161,6 +169,7 @@ export default function ContractsPage() {
                   <th>Contrato</th>
                   <th>Descrição</th>
                   <th>Status</th>
+                  <th>Inativado em</th>
                   {role === 'ADMIN' && <th>Ações</th>}
                 </tr>
               </thead>
@@ -174,6 +183,9 @@ export default function ContractsPage() {
                     <td>{contract.descricao}</td>
                     <td>
                       <StatusBadge active={contract.ativo} />
+                    </td>
+                    <td>
+                      <InactivationTableValue record={contract} />
                     </td>
                     {role === 'ADMIN' && (
                       <td>

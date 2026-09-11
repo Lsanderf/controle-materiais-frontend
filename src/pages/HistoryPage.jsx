@@ -8,6 +8,7 @@ import {
 import { useResource } from '../hooks/useResource';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { sortMovementsNewestFirst } from '../utils/formatters';
+import MovementReceiptModal from '../components/MovementReceiptModal';
 
 const filters = [
   { value: 'TODOS', label: 'Todos' },
@@ -18,6 +19,7 @@ const filters = [
 
 export default function HistoryPage() {
   const [filter, setFilter] = useState('TODOS');
+  const [selectedMovementId, setSelectedMovementId] = useState(null);
   const loader = useCallback(() => movimentacaoService.list(), []);
   const {
     data: movements,
@@ -114,6 +116,15 @@ export default function HistoryPage() {
                     </dd>
                   </div>
                 </dl>
+                <div className="resource-actions">
+                  <button
+                    className="button button-secondary"
+                    type="button"
+                    onClick={() => setSelectedMovementId(movement.id)}
+                  >
+                    Ver comprovante
+                  </button>
+                </div>
               </article>
             ))}
           </div>
@@ -129,6 +140,7 @@ export default function HistoryPage() {
                   <th>Funcionário</th>
                   <th>Contrato</th>
                   <th>Registrado por</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -154,12 +166,28 @@ export default function HistoryPage() {
                         'Não informado'
                       )}
                     </td>
+                    <td>
+                      <button
+                        className="text-button"
+                        type="button"
+                        onClick={() => setSelectedMovementId(movement.id)}
+                      >
+                        Ver comprovante
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </>
+      )}
+
+      {selectedMovementId && (
+        <MovementReceiptModal
+          movementId={selectedMovementId}
+          onClose={() => setSelectedMovementId(null)}
+        />
       )}
     </div>
   );

@@ -1,6 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
+import {
+  InactivationTableValue,
+  MobileInactivationDetails,
+} from '../components/InactivationDetails';
 import StatusFilter from '../components/StatusFilter';
 import {
   EmptyState,
@@ -26,6 +30,7 @@ export default function EmployeesPage() {
   const loader = useCallback(() => funcionarioService.list(), []);
   const {
     data: employees,
+    setData: setEmployees,
     loading,
     error,
     reload,
@@ -45,15 +50,24 @@ export default function EmployeesPage() {
     setActionError(null);
     try {
       if (selected.ativo) {
-        await funcionarioService.deactivate(selected.id);
+        const updated = await funcionarioService.deactivate(selected.id);
+        setEmployees((current) =>
+          (current ?? []).map((employee) =>
+            employee.id === updated.id ? updated : employee,
+          ),
+        );
       } else {
-        await funcionarioService.activate(selected.id);
+        const updated = await funcionarioService.activate(selected.id);
+        setEmployees((current) =>
+          (current ?? []).map((employee) =>
+            employee.id === updated.id ? updated : employee,
+          ),
+        );
       }
       setSuccess(
         `Funcionário ${selected.ativo ? 'desativado' : 'ativado'} com sucesso.`,
       );
       setSelected(null);
-      await reload();
     } catch (requestError) {
       setActionError(requestError);
       setSelected(null);
@@ -133,6 +147,7 @@ export default function EmployeesPage() {
                   <StatusBadge active={employee.ativo} />
                 </div>
                 <p>{employee.cargo}</p>
+                <MobileInactivationDetails record={employee} />
                 {role === 'ADMIN' && (
                   <div className="resource-actions">
                     <Link
@@ -161,6 +176,7 @@ export default function EmployeesPage() {
                   <th>Nome</th>
                   <th>Cargo</th>
                   <th>Status</th>
+                  <th>Inativado em</th>
                   {role === 'ADMIN' && <th>Ações</th>}
                 </tr>
               </thead>
@@ -174,6 +190,9 @@ export default function EmployeesPage() {
                     <td>{employee.cargo}</td>
                     <td>
                       <StatusBadge active={employee.ativo} />
+                    </td>
+                    <td>
+                      <InactivationTableValue record={employee} />
                     </td>
                     {role === 'ADMIN' && (
                       <td>

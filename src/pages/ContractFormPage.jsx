@@ -106,17 +106,19 @@ export default function ContractFormPage() {
           <small>{form.descricao.length}/500 caracteres</small>
         </label>
 
-        <label className="switch-field">
-          <input
-            type="checkbox"
-            checked={form.ativo}
-            onChange={(event) => change('ativo', event.target.checked)}
-          />
-          <span>
-            <strong>Contrato ativo</strong>
-            <small>Disponível para novas retiradas e devoluções.</small>
-          </span>
-        </label>
+        {!editing && (
+          <label className="switch-field">
+            <input
+              type="checkbox"
+              checked={form.ativo}
+              onChange={(event) => change('ativo', event.target.checked)}
+            />
+            <span>
+              <strong>Contrato ativo</strong>
+              <small>Disponível para novas retiradas e devoluções.</small>
+            </span>
+          </label>
+        )}
 
         <div className="form-actions">
           <Link className="button button-secondary" to="/contratos">

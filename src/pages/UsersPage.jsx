@@ -2,6 +2,10 @@ import { useCallback, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
 import {
+  InactivationTableValue,
+  MobileInactivationDetails,
+} from '../components/InactivationDetails';
+import {
   EmptyState,
   ErrorMessage,
   Loading,
@@ -27,6 +31,7 @@ export default function UsersPage() {
   const loader = useCallback(() => usuarioService.list(), []);
   const {
     data: users,
+    setData: setUsers,
     loading,
     error,
     reload,
@@ -59,15 +64,24 @@ export default function UsersPage() {
     setActionError(null);
     try {
       if (selected.ativo) {
-        await usuarioService.deactivate(selected.id);
+        const updated = await usuarioService.deactivate(selected.id);
+        setUsers((current) =>
+          (current ?? []).map((user) =>
+            user.id === updated.id ? updated : user,
+          ),
+        );
       } else {
-        await usuarioService.activate(selected.id);
+        const updated = await usuarioService.activate(selected.id);
+        setUsers((current) =>
+          (current ?? []).map((user) =>
+            user.id === updated.id ? updated : user,
+          ),
+        );
       }
       setSuccess(
         `Usuário ${selected.ativo ? 'desativado' : 'ativado'} com sucesso.`,
       );
       setSelected(null);
-      await reload();
     } catch (requestError) {
       setActionError(requestError);
       setSelected(null);
@@ -145,6 +159,7 @@ export default function UsersPage() {
                   <StatusBadge active={user.ativo} />
                 </div>
                 <p>{roleLabel(user.role)}</p>
+                <MobileInactivationDetails record={user} />
                 <div className="resource-actions">
                   <Link
                     className="button button-secondary"
@@ -172,6 +187,7 @@ export default function UsersPage() {
                   <th>Usuário</th>
                   <th>Perfil</th>
                   <th>Status</th>
+                  <th>Inativado em</th>
                   <th>Ações</th>
                 </tr>
               </thead>
@@ -185,6 +201,9 @@ export default function UsersPage() {
                     <td>{roleLabel(user.role)}</td>
                     <td>
                       <StatusBadge active={user.ativo} />
+                    </td>
+                    <td>
+                      <InactivationTableValue record={user} />
                     </td>
                     <td>
                       <div className="table-actions">

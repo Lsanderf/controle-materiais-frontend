@@ -102,3 +102,37 @@ export async function apiRequest(path, options = {}) {
 
   return responseBody;
 }
+
+export async function apiBlobRequest(path) {
+  const storedAuth = readStoredAuth();
+  const headers = new Headers();
+
+  if (storedAuth?.token) {
+    headers.set('Authorization', `Bearer ${storedAuth.token}`);
+  }
+
+  let response;
+  try {
+    response = await fetch(`${API_URL}${path}`, { headers });
+  } catch {
+    throw new ApiError(
+      'Não foi possível conectar ao servidor. Verifique se o back-end está em execução.',
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    const responseBody = await readResponse(response);
+    if (response.status === 401) {
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      window.dispatchEvent(new Event('auth:unauthorized'));
+    }
+    throw new ApiError(
+      errorMessage(responseBody, response.status),
+      response.status,
+      responseBody && typeof responseBody === 'object' ? responseBody : {},
+    );
+  }
+
+  return response.blob();
+}

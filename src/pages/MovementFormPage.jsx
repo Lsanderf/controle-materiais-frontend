@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import ConfirmDialog from '../components/ConfirmDialog';
+import SignaturePad from '../components/SignaturePad';
 import {
   EmptyState,
   ErrorMessage,
@@ -13,6 +14,7 @@ import { funcionarioService } from '../services/funcionarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
+import { isSignatureConflict } from '../utils/signature';
 
 const descriptions = {
   RETIRADA: 'Registre a entrega de materiais para uso em um contrato.',
@@ -27,11 +29,17 @@ export default function MovementFormPage({ type }) {
     funcionarioId: '',
     contratoId: '',
     quantidade: '',
+    observacao: '',
   });
   const [confirming, setConfirming] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
+  const [createdMovement, setCreatedMovement] = useState(null);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const [signatureError, setSignatureError] = useState(null);
+  const [signatureRegistered, setSignatureRegistered] = useState(false);
   const [employeeMovements, setEmployeeMovements] = useState([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
@@ -113,6 +121,8 @@ export default function MovementFormPage({ type }) {
       return 'A quantidade deve ser um numero inteiro maior que zero.';
     if (quantity > 10000)
       return 'A quantidade maxima por operacao e 10.000.';
+    if (form.observacao.length > 1000)
+      return 'A observacao deve possuir no maximo 1.000 caracteres.';
     if (
       type === 'RETIRADA' &&
       selectedMaterial &&
@@ -130,6 +140,7 @@ export default function MovementFormPage({ type }) {
     form.contratoId,
     form.funcionarioId,
     form.materialId,
+    form.observacao,
     quantity,
     returnBalance,
     selectedMaterial,
@@ -156,20 +167,30 @@ export default function MovementFormPage({ type }) {
     setSaving(true);
     setError(null);
     try {
-      await movimentacaoService.create({
+      const movement = await movimentacaoService.create({
         funcionarioId: Number(form.funcionarioId),
         contratoId: Number(form.contratoId),
         materialId: Number(form.materialId),
         quantidade: quantity,
         tipo: type,
+        ...(form.observacao.trim() && {
+          observacao: form.observacao.trim(),
+        }),
       });
       setConfirming(false);
       setSuccess(`${movementLabel(type)} registrada com sucesso.`);
+      setCreatedMovement({
+        ...movement,
+        funcionarioNome: movement.funcionario ?? selectedEmployee?.nome,
+      });
+      setSignatureRegistered(false);
+      setSignatureError(null);
       setForm({
         materialId: '',
         funcionarioId: '',
         contratoId: '',
         quantidade: '',
+        observacao: '',
       });
       await reload();
     } catch (requestError) {
@@ -177,6 +198,29 @@ export default function MovementFormPage({ type }) {
       setError(requestError);
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveSignature(blob) {
+    if (!createdMovement) return;
+
+    setSignatureSaving(true);
+    setSignatureError(null);
+    try {
+      await movimentacaoService.uploadSignature(createdMovement.id, blob);
+      setSignatureRegistered(true);
+      setSignatureOpen(false);
+      setSuccess('Assinatura registrada com sucesso.');
+    } catch (requestError) {
+      if (isSignatureConflict(requestError)) {
+        setSignatureRegistered(true);
+        setSignatureOpen(false);
+        setSuccess('A assinatura desta movimentação já estava registrada.');
+      } else {
+        setSignatureError(requestError);
+      }
+    } finally {
+      setSignatureSaving(false);
     }
   }
 
@@ -219,6 +263,31 @@ export default function MovementFormPage({ type }) {
 
       <SuccessMessage>{success}</SuccessMessage>
       <ErrorMessage error={error} />
+
+      {createdMovement &&
+        ['RETIRADA', 'DEVOLUCAO'].includes(createdMovement.tipo ?? type) &&
+        !signatureRegistered && (
+          <section className="content-card signature-offer">
+            <div>
+              <span className="eyebrow">Movimentação concluída</span>
+              <h2>Coletar assinatura do funcionário</h2>
+              <p>
+                A assinatura é opcional e pode ser adicionada agora como evidência do
+                comprovante #{createdMovement.id}.
+              </p>
+            </div>
+            <button
+              className="button button-primary"
+              type="button"
+              onClick={() => {
+                setSignatureError(null);
+                setSignatureOpen(true);
+              }}
+            >
+              Coletar assinatura
+            </button>
+          </section>
+        )}
 
       {employees.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
@@ -296,6 +365,17 @@ export default function MovementFormPage({ type }) {
               />
               <small>Maximo de 10.000 unidades por operacao.</small>
             </label>
+
+            <label className="field field-wide">
+              <span>Observacao (opcional)</span>
+              <textarea
+                maxLength="1000"
+                value={form.observacao}
+                onChange={(event) => change('observacao', event.target.value)}
+                placeholder="Registre uma informacao relevante para o comprovante."
+              />
+              <small>{form.observacao.length}/1.000 caracteres.</small>
+            </label>
           </div>
 
           {type === 'DEVOLUCAO' &&
@@ -354,6 +434,12 @@ export default function MovementFormPage({ type }) {
             <dt>Quantidade</dt>
             <dd>{quantity} un.</dd>
           </div>
+          {form.observacao.trim() && (
+            <div>
+              <dt>Observacao</dt>
+              <dd>{form.observacao.trim()}</dd>
+            </div>
+          )}
           <div className="summary-total">
             <dt>Estoque apos a operacao</dt>
             <dd>{projectedStock} un.</dd>
@@ -363,6 +449,19 @@ export default function MovementFormPage({ type }) {
           O servidor fara a validacao definitiva no momento do registro.
         </p>
       </ConfirmDialog>
+
+      {signatureOpen && createdMovement && (
+        <SignaturePad
+          employeeName={createdMovement.funcionarioNome}
+          saving={signatureSaving}
+          error={signatureError}
+          onConfirm={saveSignature}
+          onCancel={() => {
+            setSignatureOpen(false);
+            setSignatureError(null);
+          }}
+        />
+      )}
     </div>
   );
 }

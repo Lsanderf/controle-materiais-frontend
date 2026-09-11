@@ -7,4 +7,8 @@ export const contratoService = {
     apiRequest('/contratos', { method: 'POST', body: contrato }),
   update: (id, contrato) =>
     apiRequest(`/contratos/${id}`, { method: 'PUT', body: contrato }),
+  activate: (id) =>
+    apiRequest(`/contratos/${id}/ativar`, { method: 'PATCH' }),
+  deactivate: (id) =>
+    apiRequest(`/contratos/${id}/desativar`, { method: 'PATCH' }),
 };
