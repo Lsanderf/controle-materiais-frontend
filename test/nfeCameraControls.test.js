@@ -13,6 +13,9 @@ function trackMock(capabilities = {}, initial = {}) {
     async applyConstraints(value) {
       calls.push(value);
       for (const entry of value.advanced ?? []) Object.assign(settings, entry);
+      for (const key of ['torch', 'zoom']) {
+        if (value[key]?.exact !== undefined) settings[key] = value[key].exact;
+      }
     },
   };
 }
@@ -73,17 +76,17 @@ test('falha/constraint ignorada de torch não lança nem afirma que ligou', asyn
   assert.deepEqual(await createNfeCameraControls(track).setTorch(true), { ok: false, value: false });
 });
 
-test('zoom é opcional, limitado e não começa com aproximação automática', async () => {
+test('zoom é opcional, respeita intervalo real e não começa com aproximação automática', async () => {
   assert.equal(nfeZoomRange({}), null);
   assert.equal(nfeZoomRange({ zoom: { min: 1, max: 1 } }), null);
-  assert.equal(nfeZoomRange({ zoom: { min: 1, max: 10, step: 0.7 } }).max, 2.4);
+  assert.equal(nfeZoomRange({ zoom: { min: 1, max: 10, step: 0.7 } }).max, 10);
   assert.equal(nfeZoomRange({ zoom: { min: 1, max: 2, step: 4 } }), null);
   const track = trackMock({ zoom: { min: 1, max: 12, step: 0.1 } });
   const controls = createNfeCameraControls(track);
   await controls.configure();
   assert.equal(track.calls.length, 0);
-  assert.equal(controls.zoom.max, 3);
-  assert.equal((await controls.setZoom(20)).value, 3);
+  assert.equal(controls.zoom.max, 12);
+  assert.equal((await controls.setZoom(20)).value, 12);
   assert.equal((await controls.setZoom(-1)).value, 1);
   assert.equal((await controls.setZoom(NaN)).ok, false);
 });
@@ -167,4 +170,119 @@ test('cadência desacelera em aparelhos lentos, sem loop de tentativas simultân
   assert.equal(nfeDecodeDelay(5), 160);
   assert.equal(nfeDecodeDelay(180), 360);
   assert.equal(nfeDecodeDelay(2000), 1000);
+});
+
+test('torch/zoom têm prioridade em advanced mesmo após foco/exposição', async () => {
+  const track = trackMock({ torch: true, zoom: { min: 1, max: 8, step: 0.1 },
+    focusMode: ['continuous'], exposureMode: ['continuous'] });
+  const controls = createNfeCameraControls(track);
+  await controls.configure();
+  await controls.setTorch(true);
+  assert.deepEqual(track.calls.at(-1).advanced[0], { torch: true });
+  await controls.setZoom(2);
+  assert.deepEqual(track.calls.at(-1).advanced[0], { zoom: 2 });
+});
+
+test('fallback exact confirma a alteração quando advanced é ignorado', async () => {
+  const track = trackMock({ torch: true, zoom: { min: 1, max: 8, step: 0.1 } });
+  track.applyConstraints = async (constraints) => {
+    track.calls.push(constraints);
+    for (const key of ['torch', 'zoom']) {
+      if (constraints[key]?.exact !== undefined) track.settings[key] = constraints[key].exact;
+    }
+  };
+  const controls = createNfeCameraControls(track);
+  assert.deepEqual(await controls.setTorch(true), { ok: true, value: true });
+  assert.deepEqual(track.calls[1].torch, { exact: true });
+  assert.deepEqual(await controls.setZoom(2), { ok: true, value: 2 });
+  assert.deepEqual(track.calls[3].zoom, { exact: 2 });
+  assert.deepEqual(await controls.setTorch(false), { ok: true, value: false });
+  assert.equal(track.settings.zoom, 2);
+  assert.deepEqual(track.calls.at(-1).width, { ideal: 1920 });
+});
+
+test('fallback não confirma sucesso se ambas as formas forem ignoradas', async () => {
+  const track = trackMock({ torch: true, zoom: { min: 1, max: 8, step: 0.1 } });
+  track.applyConstraints = async (value) => { track.calls.push(value); };
+  const controls = createNfeCameraControls(track);
+  assert.deepEqual(await controls.setZoom(4), { ok: false, value: 1 });
+  assert.equal(track.calls.length, 3); // advanced, exact, restore
+  assert.deepEqual(await controls.setTorch(true), { ok: false, value: false });
+  assert.equal(controls.getState().torchOn, false);
+});
+
+test('settings ausentes nunca são substituídos pelo valor solicitado', async () => {
+  const track = trackMock({ torch: true, zoom: { min: 1, max: 8, step: 0.1 } });
+  track.getSettings = () => ({});
+  const controls = createNfeCameraControls(track);
+  assert.equal(controls.zoom.value, null);
+  assert.deepEqual(await controls.setTorch(true), { ok: false, value: false });
+  assert.deepEqual(await controls.setZoom(4), { ok: false, value: null });
+  assert.equal(controls.zoom.value, null);
+});
+
+test('falha ao desligar mantém lanterna ligada e erro não desativa track', async () => {
+  const track = trackMock({ torch: true }, { torch: true });
+  track.applyConstraints = async () => { throw new Error('rejected'); };
+  const controls = createNfeCameraControls(track);
+  assert.deepEqual(await controls.setTorch(false), { ok: false, value: true });
+  assert.equal(controls.getState().torchOn, true);
+  assert.equal(track.readyState, 'live');
+});
+
+test('zoom respeita step com origem diferente de 1 e informa arredondamento real', async () => {
+  const track = trackMock({ zoom: { min: 0.5, max: 5, step: 0.25 } }, { zoom: 1.25 });
+  const controls = createNfeCameraControls(track);
+  assert.deepEqual(controls.zoom, { min: 0.5, max: 5, step: 0.25, value: 1.25 });
+  await controls.setZoom(2.37);
+  assert.deepEqual(track.calls.at(-1).advanced[0], { zoom: 2.25 });
+  track.applyConstraints = async () => { track.settings.zoom = 2.5; };
+  assert.deepEqual(await controls.setZoom(3), { ok: true, value: 2.5 });
+});
+
+test('capabilities são consultadas novamente e track diferente impede alteração', async () => {
+  const track = trackMock();
+  let active = track;
+  let capabilities = {};
+  track.getCapabilities = () => capabilities;
+  const controls = createNfeCameraControls(track, () => false, () => active);
+  assert.equal(controls.torchSupported, false);
+  capabilities = { torch: true, zoom: { min: 2, max: 6, step: 0.5 } };
+  assert.equal(controls.torchSupported, true);
+  assert.equal(controls.zoom.min, 2);
+  active = trackMock();
+  assert.equal(controls.isActive(), false);
+  assert.equal((await controls.setTorch(true)).ok, false);
+  assert.equal(track.calls.length, 0);
+  assert.deepEqual(controls.getState(), { torchSupported: false, torchOn: false, zoom: null });
+});
+
+test('último zoom prevalece e fila descarta posições intermediárias', async () => {
+  const track = trackMock({ zoom: { min: 1, max: 8, step: 0.1 } });
+  let release;
+  const apply = track.applyConstraints.bind(track);
+  track.applyConstraints = async (value) => {
+    if (!track.calls.length) await new Promise((resolve) => { release = resolve; });
+    await apply(value);
+  };
+  const controls = createNfeCameraControls(track);
+  const first = controls.setZoom(2);
+  await Promise.resolve();
+  const middle = controls.setZoom(3);
+  const last = controls.setZoom(4);
+  release();
+  await first;
+  assert.equal((await middle).ok, false);
+  assert.deepEqual(await last, { ok: true, value: 4 });
+  assert.equal(track.calls.length, 2);
+  assert.equal(track.settings.zoom, 4);
+});
+
+test('getSettings ausente/lançando erro e capabilities inválidas não quebram scanner', async () => {
+  const track = trackMock({ torch: 'true', zoom: { min: 1, max: Infinity, step: 0.1 } });
+  track.getSettings = () => { throw new Error('unavailable'); };
+  const controls = createNfeCameraControls(track);
+  assert.deepEqual(controls.getState(), { torchSupported: false, torchOn: false, zoom: null });
+  assert.equal((await controls.setTorch(true)).ok, false);
+  assert.equal((await controls.setZoom(2)).ok, false);
 });

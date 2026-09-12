@@ -2012,6 +2012,46 @@ td small {
   gap: 10px 16px;
 }
 
+.barcode-torch-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  border: 2px solid #8993a4;
+  border-radius: 50%;
+  color: #536075;
+  background: #f4f6f9;
+  transition: border-color 120ms ease, background-color 120ms ease, color 120ms ease;
+}
+
+.barcode-torch-button[aria-pressed="true"] {
+  border-color: #175cd3;
+  color: #175cd3;
+  background: #eaf2ff;
+}
+
+.barcode-torch-button:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: 3px;
+}
+
+.barcode-torch-button:disabled { opacity: 0.65; }
+.barcode-torch-rays { visibility: hidden; }
+.barcode-torch-button[aria-pressed="true"] .barcode-torch-rays { visibility: visible; }
+
+@media (prefers-color-scheme: dark) {
+  .barcode-torch-button { border-color: #97a3b6; color: #dce3ef; background: #263246; }
+  .barcode-torch-button[aria-pressed="true"] { border-color: #76adff; color: #9ac3ff; background: #183963; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .barcode-torch-button { transition: none; }
+}
+
+.barcode-zoom-pending { color: var(--muted); font-size: 0.75rem; }
+
 .barcode-zoom {
   display: grid;
   flex: 1 1 150px;

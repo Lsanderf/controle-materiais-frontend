@@ -30,23 +30,33 @@ export function trackCapabilities(track) {
 }
 
 function mergeCameraConstraints(previous = {}, changes = {}, optional = {}) {
-  const keys = Object.keys(optional);
+  const keys = [...Object.keys(optional), ...Object.keys(changes)];
+  const basic = Object.fromEntries(Object.entries(previous).filter(([key]) => key !== 'advanced' && !keys.includes(key)));
   const advanced = (previous.advanced ?? []).map((entry) => Object.fromEntries(
     Object.entries(entry).filter(([key]) => !keys.includes(key)),
   )).filter((entry) => Object.keys(entry).length);
-  if (keys.length) advanced.push(optional);
-  return { ...previous, ...changes, ...(advanced.length ? { advanced } : {}) };
+  // Put the requested imaging control first, never behind focus/exposure entries.
+  if (Object.keys(optional).length) advanced.unshift(optional);
+  return { ...basic, ...changes, ...(advanced.length ? { advanced } : {}) };
+}
+
+function trackSettings(track) {
+  try { return track?.getSettings?.() ?? {}; } catch { return {}; }
+}
+
+function trackConstraints(track) {
+  try { return track?.getConstraints?.() ?? {}; } catch { return {}; }
 }
 
 export function nfeZoomRange(capabilities, settings = {}) {
   const zoom = capabilities.zoom;
   if (!Number.isFinite(zoom?.min) || !Number.isFinite(zoom?.max) || zoom.min <= 0) return null;
   const min = zoom.min;
-  const step = zoom.step > 0 ? zoom.step : 0.1;
-  const limit = Math.min(zoom.max, Math.max(1, min) * 3);
-  const max = Number((min + Math.floor((limit - min) / step + 1e-8) * step).toFixed(6));
-  if (max <= min) return null;
-  return { min, max, step, value: Math.max(min, Math.min(max, settings.zoom ?? Math.max(1, min))) };
+  const step = Number.isFinite(zoom.step) && zoom.step > 0 ? zoom.step : 0.1;
+  const max = zoom.max;
+  if (max <= min || step > max - min) return null;
+  // A missing setting is unknown, not evidence that the requested zoom was applied.
+  return { min, max, step, value: Number.isFinite(settings.zoom) ? settings.zoom : null };
 }
 
 export function nfeResolutionUpgrade(settings, capabilities) {
@@ -62,75 +72,126 @@ export function nfeResolutionUpgrade(settings, capabilities) {
 
 // Serialize every track update, retaining resolution and earlier camera controls.
 // A queued change from a cancelled/replaced session never touches another track.
-export function createNfeCameraControls(track, isCancelled = () => false) {
-  const capabilities = trackCapabilities(track);
-  const torchSupported = capabilities.torch === true ||
-    (Array.isArray(capabilities.torch) && capabilities.torch.includes(true));
-  const zoom = nfeZoomRange(capabilities, track.getSettings?.());
-  let constraints = track.getConstraints?.() ?? {};
+export function createNfeCameraControls(track, isCancelled = () => false, getActiveTrack = () => track) {
+  let constraints = trackConstraints(track);
   let queue = Promise.resolve();
-  const stopped = () => isCancelled() || track.readyState === 'ended';
+  let zoomRevision = 0;
+  const stopped = () => isCancelled() || track.readyState === 'ended' || getActiveTrack() !== track;
+  function state() {
+    if (stopped()) return { torchSupported: false, torchOn: false, zoom: null };
+    const capabilities = trackCapabilities(track);
+    const settings = trackSettings(track);
+    return {
+      torchSupported: capabilities.torch === true ||
+        (Array.isArray(capabilities.torch) && capabilities.torch.includes(true)),
+      torchOn: settings.torch === true,
+      zoom: nfeZoomRange(capabilities, settings),
+    };
+  }
 
-  function apply(changes, optional) {
-    const operation = queue.then(async () => {
-      if (stopped() || !track.applyConstraints) return false;
-      const next = mergeCameraConstraints(constraints, changes, optional);
-      try {
-        await track.applyConstraints(next);
-        if (stopped()) return false;
-        constraints = next;
-        return true;
-      } catch (error) {
-        logNfeScanner('optional camera control unavailable', { name: error?.name, message: error?.message });
-        return false;
-      }
-    });
-    queue = operation;
-    return operation;
+  function diagnostics(event, extra = {}) {
+    const capabilities = trackCapabilities(track);
+    logNfeScanner(event, { camera: track.label, trackId: track.id,
+      capabilities: { torch: capabilities.torch, zoom: capabilities.zoom },
+      settings: trackSettings(track), effectiveConstraints: trackConstraints(track), ...extra });
+  }
+
+  function enqueue(operation) {
+    // Include readback/fallback in the same operation so another request cannot
+    // change settings between applyConstraints and verification.
+    const result = queue.then(operation);
+    queue = result.catch(() => {});
+    return result;
+  }
+
+  async function apply(next, context = {}) {
+    if (stopped() || !track.applyConstraints) return { ok: false };
+    try {
+      await track.applyConstraints(next);
+      if (stopped()) return { ok: false };
+      constraints = next;
+      diagnostics('camera constraints applied', { requestedConstraints: next, ...context });
+      return { ok: true };
+    } catch (error) {
+      diagnostics('optional camera control unavailable', { requestedConstraints: next,
+        error: { name: error?.name, message: error?.message }, ...context });
+      return { ok: false, error };
+    }
+  }
+
+  async function changeControl(key, requested, superseded = () => false) {
+    const before = trackSettings(track)[key];
+    const previous = key === 'torch' ? before === true : Number.isFinite(before) ? before : null;
+    const failed = () => ({ ok: false, value: previous });
+    if (stopped() || superseded()) return failed();
+    const snapshot = constraints;
+    let appliedAny = false;
+    for (const variant of ['advanced', 'exact']) {
+      if (stopped() || superseded()) return failed();
+      const next = variant === 'advanced'
+        ? mergeCameraConstraints(snapshot, {}, { [key]: requested })
+        : mergeCameraConstraints(snapshot, { [key]: { exact: requested } });
+      const result = await apply(next, { control: key, variant, requested });
+      if (stopped()) return failed();
+      appliedAny ||= result.ok;
+      const effective = trackSettings(track)[key];
+      const confirmed = key === 'torch'
+        ? typeof effective === 'boolean' && effective === requested
+        : Number.isFinite(effective) && (Math.abs(effective - requested) < 1e-6 || effective !== before);
+      if (result.ok && confirmed) return { ok: true, value: effective };
+      diagnostics('camera control not confirmed', { control: key, variant, requested, effective });
+      if (['NotAllowedError', 'SecurityError', 'InvalidStateError', 'NotReadableError'].includes(result.error?.name)) break;
+    }
+    // Successful advanced constraints may have been ignored or cannot be verified.
+    // Restore prior constraints; never use the requested value as a UI fallback.
+    if (appliedAny && !stopped() && !superseded()) {
+      const restore = key === 'torch' || Number.isFinite(before)
+        ? mergeCameraConstraints(snapshot, {}, { [key]: previous }) : snapshot;
+      await apply(restore, { control: key, variant: 'restore' });
+    }
+    return failed();
   }
 
   return {
-    torchSupported,
-    zoom,
-    getState: () => ({
-      torchSupported,
-      torchOn: track.getSettings?.().torch === true,
-      zoom: nfeZoomRange(capabilities, track.getSettings?.()),
-    }),
-    async configure() {
-      logNfeScanner('track capabilities', capabilities);
-      const settings = track.getSettings?.() ?? {};
-      const upgrade = nfeResolutionUpgrade(settings, capabilities);
-      if (upgrade) {
-        const applied = await apply(upgrade);
-        logNfeScanner('resolution improvement', { before: settings, requested: upgrade,
-          applied, effective: track.getSettings?.() });
-      }
-      for (const mode of ['focusMode', 'exposureMode', 'whiteBalanceMode']) {
-        if (capabilities[mode]?.includes('continuous')) {
-          const applied = await apply({}, { [mode]: 'continuous' });
-          logNfeScanner('continuous camera mode', { mode, applied, effective: track.getSettings?.()[mode] });
+    get torchSupported() { return state().torchSupported; },
+    get zoom() { return state().zoom; },
+    isActive: () => !stopped(),
+    getState: state,
+    configure() {
+      return enqueue(async () => {
+        if (stopped()) return;
+        const capabilities = trackCapabilities(track);
+        diagnostics('active camera controls');
+        logNfeScanner('track capabilities', capabilities);
+        const settings = trackSettings(track);
+        const upgrade = nfeResolutionUpgrade(settings, capabilities);
+        if (upgrade) {
+          const applied = await apply(mergeCameraConstraints(constraints, upgrade));
+          logNfeScanner('resolution improvement', { before: settings, requested: upgrade,
+            applied: applied.ok, effective: trackSettings(track) });
         }
-      }
-      // Do not zoom in automatically. Only correct an already excessive setting.
-      if (zoom && (track.getSettings?.().zoom ?? zoom.value) > zoom.max) {
-        await apply({}, { zoom: Math.max(1, zoom.min) });
-      }
+        for (const mode of ['focusMode', 'exposureMode', 'whiteBalanceMode']) {
+          if (capabilities[mode]?.includes('continuous')) {
+            const applied = await apply(mergeCameraConstraints(constraints, {}, { [mode]: 'continuous' }));
+            logNfeScanner('continuous camera mode', { mode, applied: applied.ok, effective: trackSettings(track)[mode] });
+          }
+        }
+      });
     },
-    async setTorch(enabled) {
-      if (!torchSupported) return { ok: false };
-      const applied = await apply({}, { torch: Boolean(enabled) });
-      const value = track.getSettings?.().torch ?? Boolean(enabled);
-      return { ok: applied && value === Boolean(enabled), value };
+    setTorch(enabled) {
+      return enqueue(() => state().torchSupported
+        ? changeControl('torch', Boolean(enabled)) : { ok: false });
     },
-    async setZoom(requested) {
-      if (!zoom || !Number.isFinite(requested)) return { ok: false };
-      const clamped = Math.max(zoom.min, Math.min(zoom.max, requested));
-      const value = Math.max(zoom.min, Math.min(zoom.max,
-        zoom.min + Math.round((clamped - zoom.min) / zoom.step) * zoom.step));
-      const applied = await apply({}, { zoom: value });
-      const effective = track.getSettings?.().zoom ?? value;
-      return { ok: applied, value: effective };
+    setZoom(requested) {
+      const revision = ++zoomRevision;
+      return enqueue(() => {
+        const zoom = state().zoom;
+        if (!zoom || !Number.isFinite(requested) || revision !== zoomRevision) return { ok: false };
+        const steps = Math.max(0, Math.min(Math.floor((zoom.max - zoom.min) / zoom.step + 1e-8),
+          Math.round((requested - zoom.min) / zoom.step)));
+        const value = Number((zoom.min + steps * zoom.step).toFixed(8));
+        return changeControl('zoom', value, () => revision !== zoomRevision);
+      });
     },
   };
 }

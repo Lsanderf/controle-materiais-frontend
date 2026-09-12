@@ -74,16 +74,33 @@ async function setup(page, options = {}) {
         const stream = canvas.captureStream(10);
         const track = stream.getVideoTracks()[0];
         const settings = track.getSettings.bind(track);
-        const controlSettings = { torch: false, zoom: 1 };
-        track.getSettings = () => ({ ...settings(), ...controlSettings, deviceId: id, facingMode: id === 'front' ? 'user' : 'environment' });
-        track.getCapabilities = () => ({ ...(config.noFocus ? {} : { focusMode: ['continuous'] }),
-          ...(config.controls ? { torch: true, zoom: { min: 1, max: 10, step: 0.1 },
-            exposureMode: ['continuous'], whiteBalanceMode: ['continuous'] } : {}) });
+        const controlSettings = { torch: false, zoom: config.initialZoom?.[id] ?? 1 };
+        track.getSettings = () => ({ ...settings(), ...(config.missingSettings ? {} : controlSettings),
+          deviceId: id, facingMode: id === 'front' ? 'user' : 'environment' });
+        track.getCapabilities = () => {
+          if (config.capabilitiesAfterPlayback && !document.querySelector('.barcode-video')?.videoWidth) return {};
+          return { ...(config.noFocus ? {} : { focusMode: ['continuous'] }),
+            ...(config.deviceCapabilities?.[id] ?? (config.controls ? { torch: true, zoom: { min: 1, max: 10, step: 0.1 },
+              exposureMode: ['continuous'], whiteBalanceMode: ['continuous'] } : {})) };
+        };
         track.applyConstraints = async (value) => {
           state.focus.push(value);
+          state.appliedTracks ??= [];
+          state.appliedTracks.push(id);
           const changes = Object.assign({}, ...value.advanced ?? []);
+          for (const key of ['torch', 'zoom']) {
+            if (value[key]?.exact !== undefined) changes[key] = value[key].exact;
+          }
+          if (state.holdCommands && ('torch' in changes || 'zoom' in changes)) {
+            await new Promise((resolve) => { state.releaseCommand = () => { state.holdCommands = false; resolve(); }; });
+          }
           if (config.failTorch && changes.torch) throw new Error('torch unavailable');
+          if (config.failTorchOff && changes.torch === false) throw new Error('torch off unavailable');
           if (config.failZoom && changes.zoom) throw new Error('zoom unavailable');
+          for (const key of ['torch', 'zoom']) {
+            if (config.ignoreControls || (config.exactOnly && value[key]?.exact === undefined)) delete changes[key];
+          }
+          if (config.roundZoom && Number.isFinite(changes.zoom)) changes.zoom = Math.round(changes.zoom * 2) / 2;
           Object.assign(controlSettings, changes);
         };
         Object.defineProperty(track, 'label', { value: devices.find((device) => device.deviceId === id).label });
@@ -243,7 +260,7 @@ test('lanterna e zoom aparecem só com suporte; controles não reabrem câmera',
   await dialog(page).getByRole('button', { name: 'Ativar lanterna', exact: true }).click();
   await expect(dialog(page).getByRole('button', { name: 'Desativar lanterna' })).toHaveAttribute('aria-pressed', 'true');
   const zoom = dialog(page).getByRole('slider', { name: 'Zoom da câmera' });
-  await expect(zoom).toHaveAttribute('max', '3');
+  await expect(zoom).toHaveAttribute('max', '10');
   await zoom.fill('2');
   await expect.poll(() => page.evaluate(() => window.scannerCamera.streams.at(-1).getVideoTracks()[0].getSettings().zoom)).toBe(2);
   await dialog(page).getByRole('button', { name: 'Desativar lanterna' }).click();
@@ -318,4 +335,145 @@ test('usa ROI nativa menor e fallback de frame completo para código fora da gui
   expect(sizes.some((size) => size.width === 1280 && size.height < 400)).toBe(true);
   expect(sizes.some((size) => size.width === 1280 && size.height === 720)).toBe(true);
   await expect(page.getByLabel('Chave de acesso', { exact: true })).toHaveValue(KEY);
+});
+
+test('ícone circular muda estado visual e aria somente depois de confirmar torch', async ({ page }) => {
+  await setup(page, { controls: true, capabilitiesAfterPlayback: true });
+  await open(page);
+  await searching(page);
+  const button = dialog(page).locator('.barcode-torch-button');
+  await expect(button.locator('svg')).toHaveCount(1);
+  expect((await button.textContent()).trim()).toBe('');
+  await expect(button).toHaveAttribute('aria-label', 'Ativar lanterna');
+  const off = await button.evaluate((element) => ({
+    color: getComputedStyle(element).borderTopColor,
+    radius: getComputedStyle(element).borderRadius,
+    width: element.getBoundingClientRect().width,
+  }));
+  expect(off.radius).toBe('50%');
+  expect(off.width).toBeGreaterThanOrEqual(44);
+  await page.evaluate(() => { window.scannerCamera.holdCommands = true; });
+  await button.click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.scannerCamera.releaseCommand))).toBe(true);
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(button).toBeDisabled();
+  await page.evaluate(() => window.scannerCamera.releaseCommand());
+  await expect(button).toHaveAttribute('aria-pressed', 'true');
+  await expect(button).toHaveAttribute('aria-label', 'Desativar lanterna');
+  await expect(button.locator('.barcode-torch-rays')).toHaveCSS('visibility', 'visible');
+  await expect(button).toHaveCSS('border-top-color', 'rgb(23, 92, 211)');
+  expect(off.color).toBe('rgb(137, 147, 164)');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(button).toHaveCSS('border-top-color', 'rgb(118, 173, 255)');
+  await button.click();
+  await expect(button).toHaveAttribute('aria-pressed', 'false');
+  await expect(button).toHaveCSS('border-top-color', 'rgb(151, 163, 182)');
+});
+
+test('zoom mostra valor efetivo enquanto slider aguarda; última posição prevalece', async ({ page }) => {
+  await setup(page, { controls: true });
+  await open(page);
+  await searching(page);
+  await page.evaluate(() => { window.scannerCamera.holdCommands = true; });
+  const slider = dialog(page).getByRole('slider');
+  await slider.fill('2');
+  await expect.poll(() => page.evaluate(() => Boolean(window.scannerCamera.releaseCommand))).toBe(true);
+  await expect(dialog(page).getByText('Zoom: 1.0×', { exact: true })).toBeVisible();
+  await slider.fill('3');
+  await slider.fill('4');
+  await page.evaluate(() => window.scannerCamera.releaseCommand());
+  await expect(dialog(page).getByText('Zoom: 4.0×', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.scannerCamera.focus.filter((value) => 'zoom' in (value.advanced?.[0] ?? {})).length)).toBe(2);
+  expect(await page.evaluate(() => window.scannerCamera.calls.length)).toBe(1);
+});
+
+test('troca de câmera limpa torch e recalcula limites e zoom da track exibida', async ({ page }) => {
+  await setup(page, { initialZoom: { rear: 1.25, front: 2.5 }, deviceCapabilities: {
+    rear: { torch: true, zoom: { min: 0.5, max: 5, step: 0.25 } },
+    front: { torch: false, zoom: { min: 2, max: 6, step: 0.5 } },
+    ultra: {},
+  } });
+  await open(page);
+  await searching(page);
+  await expect(dialog(page).getByText('Zoom: 1.25×', { exact: true })).toBeVisible();
+  await dialog(page).getByRole('button', { name: 'Ativar lanterna' }).click();
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'true');
+  await dialog(page).getByRole('button', { name: 'Trocar câmera' }).click();
+  await searching(page);
+  await expect(dialog(page).getByRole('button', { name: /lanterna/ })).toHaveCount(0);
+  const slider = dialog(page).getByRole('slider');
+  await expect(slider).toHaveAttribute('min', '2');
+  await expect(slider).toHaveAttribute('max', '6');
+  await expect(slider).toHaveAttribute('step', '0.5');
+  await expect(dialog(page).getByText('Zoom: 2.5×', { exact: true })).toBeVisible();
+  await slider.fill('3.5');
+  await expect(dialog(page).getByText('Zoom: 3.5×', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => window.scannerCamera.appliedTracks.at(-1))).toBe('front');
+  expect(await streamStates(page)).toEqual(['ended', 'live']);
+  await dialog(page).getByRole('button', { name: 'Trocar câmera' }).click();
+  await searching(page);
+  await expect(dialog(page).getByRole('slider')).toHaveCount(0);
+});
+
+test('fallback exact modifica câmera sem reabrir; zoom sincroniza arredondamento real', async ({ page }) => {
+  await setup(page, { controls: true, exactOnly: true, roundZoom: true });
+  await open(page);
+  await searching(page);
+  await dialog(page).getByRole('button', { name: 'Ativar lanterna' }).click();
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'true');
+  await dialog(page).getByRole('slider').fill('2.3');
+  await expect(dialog(page).getByText('Zoom: 2.5×', { exact: true })).toBeVisible();
+  await expect(dialog(page).getByRole('slider')).toHaveValue('2.5');
+  expect(await page.evaluate(() => window.scannerCamera.focus.some((value) => value.torch?.exact === true))).toBe(true);
+  expect(await page.evaluate(() => window.scannerCamera.focus.some((value) => value.zoom?.exact === 2.3))).toBe(true);
+  expect(await page.evaluate(() => window.scannerCamera.calls.length)).toBe(1);
+});
+
+for (const missingSettings of [false, true]) {
+  test(`constraints ignoradas ou settings ausentes (${missingSettings}) não simulam sucesso`, async ({ page }) => {
+    await setup(page, { controls: true, missingSettings, ignoreControls: !missingSettings });
+    await open(page);
+    await searching(page);
+    const caption = missingSettings ? 'Zoom não informado' : 'Zoom: 1.0×';
+    await dialog(page).getByRole('button', { name: 'Ativar lanterna' }).click();
+    await expect(dialog(page).getByText('Não foi possível alterar a lanterna. A leitura continua.')).toBeVisible();
+    await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'false');
+    await dialog(page).getByRole('slider').fill('4');
+    await expect(dialog(page).getByText('Não foi possível ajustar o zoom. A leitura continua.')).toBeVisible();
+    await expect(dialog(page).getByText(caption, { exact: true })).toBeVisible();
+    await page.evaluate((url) => window.scannerCamera.drawBarcode(url), FIXTURE);
+    await expect(dialog(page)).toHaveCount(0);
+  });
+}
+
+test('erro ao desligar mantém estado anterior e cancelar encerra stream', async ({ page }) => {
+  await setup(page, { controls: true, failTorchOff: true });
+  await open(page);
+  await searching(page);
+  await dialog(page).getByRole('button', { name: 'Ativar lanterna' }).click();
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'true');
+  await dialog(page).getByRole('button', { name: 'Desativar lanterna' }).click();
+  await expect(dialog(page).getByText('Não foi possível alterar a lanterna. A leitura continua.')).toBeVisible();
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'true');
+  await dialog(page).getByRole('button', { name: 'Cancelar' }).click();
+  expect(await streamStates(page)).toEqual(['ended']);
+  await open(page);
+  await searching(page);
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'false');
+});
+
+test('resposta tardia da lanterna antiga não altera nova câmera', async ({ page }) => {
+  await setup(page, { controls: true });
+  await open(page);
+  await searching(page);
+  await page.evaluate(() => { window.scannerCamera.holdCommands = true; });
+  await dialog(page).getByRole('button', { name: 'Ativar lanterna' }).click();
+  await expect.poll(() => page.evaluate(() => Boolean(window.scannerCamera.releaseCommand))).toBe(true);
+  await dialog(page).getByRole('button', { name: 'Trocar câmera' }).click();
+  await searching(page);
+  await page.evaluate(() => window.scannerCamera.releaseCommand());
+  await expect(dialog(page).locator('.barcode-torch-button')).toHaveAttribute('aria-pressed', 'false');
+  expect(await streamStates(page)).toEqual(['ended', 'live']);
+  await page.evaluate((url) => window.scannerCamera.drawBarcode(url), FIXTURE);
+  await expect(dialog(page)).toHaveCount(0);
 });

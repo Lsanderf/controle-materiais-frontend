@@ -50,6 +50,8 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
   const [cameraState, setCameraState] = useState(null);
   const [cameraNotice, setCameraNotice] = useState('');
   const [torchBusy, setTorchBusy] = useState(false);
+  const [zoomDraft, setZoomDraft] = useState(null);
+  const [zoomPending, setZoomPending] = useState(false);
   const [tipIndex, setTipIndex] = useState(0);
 
   useEffect(() => {
@@ -75,9 +77,12 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
     setCameraState(null);
     setCameraNotice('');
     setTorchBusy(false);
+    setZoomDraft(null);
+    setZoomPending(false);
     setTipIndex(0);
     const video = videoRef.current;
     let stream;
+    let removeTrackListener = () => {};
 
     const session = createNfeScanSession({
       onDetected: (accessKey) => {
@@ -94,7 +99,14 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
           cameraControlsRef.current = null;
           clearTimeout(zoomTimerRef.current);
           zoomRevisionRef.current += 1;
+          if (mountedRef.current) {
+            setCameraState(null);
+            setZoomDraft(null);
+            setZoomPending(false);
+            setTorchBusy(false);
+          }
         }
+        removeTrackListener();
         stopCameraStream(stream);
         // A late completion from an older session must not clear a new preview.
         if (stream && video?.srcObject === stream) releaseVideoStream(video);
@@ -131,12 +143,6 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
       }
       setCameras(camera.devices);
       setActiveDeviceId(stream.getVideoTracks()[0]?.getSettings?.().deviceId || deviceId || '');
-      const cameraControls = createNfeCameraControls(stream.getVideoTracks()[0], isCancelled);
-      cameraControlsRef.current = cameraControls;
-      await cameraControls.configure();
-      if (isCancelled()) return;
-      setCameraState(cameraControls.getState());
-
       video.srcObject = stream;
       const reader = createNfeBarcodeReader(video, guideRef.current);
       // We own the stream so cancellation also releases it while ZXing awaits
@@ -155,6 +161,17 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
         session.stop();
         return;
       }
+      // Capabilities/settings are read after playback, from the displayed stream.
+      const getActiveTrack = () => video.srcObject?.getVideoTracks?.()[0];
+      const activeTrack = getActiveTrack();
+      const cameraControls = createNfeCameraControls(activeTrack, isCancelled, getActiveTrack);
+      cameraControlsRef.current = cameraControls;
+      const onTrackEnded = () => failScanner(Object.assign(new Error('Camera track ended'), { name: 'NotReadableError' }));
+      activeTrack.addEventListener?.('ended', onTrackEnded);
+      removeTrackListener = () => activeTrack.removeEventListener?.('ended', onTrackEnded);
+      await cameraControls.configure();
+      if (isCancelled()) return;
+      setCameraState(cameraControls.getState());
       logNfeVideoDimensions(video);
       setStarting(false);
     } catch (error) {
@@ -201,26 +218,29 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
 
   async function toggleTorch() {
     const controls = cameraControlsRef.current;
-    if (!controls || torchBusy) return;
+    if (!controls?.isActive() || torchBusy) return;
     setTorchBusy(true);
     const result = await controls.setTorch(!cameraState.torchOn);
-    if (cameraControlsRef.current !== controls) return;
+    if (cameraControlsRef.current !== controls || !controls.isActive()) return;
     setTorchBusy(false);
-    setCameraState((state) => ({ ...state, torchOn: result.value ?? state.torchOn }));
+    if (result.ok) setCameraState((state) => ({ ...state, torchOn: result.value }));
     setCameraNotice(result.ok ? '' : 'Não foi possível alterar a lanterna. A leitura continua.');
   }
 
   function changeZoom(value) {
     const controls = cameraControlsRef.current;
-    if (!controls) return;
-    setCameraState((state) => ({ ...state, zoom: { ...state.zoom, value } }));
+    if (!controls?.isActive()) return;
+    // The slider is a requested position; the caption remains the confirmed zoom.
+    setZoomDraft(value);
+    setZoomPending(true);
     clearTimeout(zoomTimerRef.current);
     const revision = ++zoomRevisionRef.current;
     zoomTimerRef.current = setTimeout(async () => {
       const result = await controls.setZoom(value);
-      if (cameraControlsRef.current !== controls || revision !== zoomRevisionRef.current) return;
-      const effective = result.value ?? controls.getState().zoom?.value;
-      setCameraState((state) => ({ ...state, zoom: { ...state.zoom, value: effective } }));
+      if (cameraControlsRef.current !== controls || !controls.isActive() || revision !== zoomRevisionRef.current) return;
+      if (result.ok) setCameraState((state) => ({ ...state, zoom: { ...state.zoom, value: result.value } }));
+      setZoomDraft(null);
+      setZoomPending(false);
       setCameraNotice(result.ok ? '' : 'Não foi possível ajustar o zoom. A leitura continua.');
     }, 180);
   }
@@ -299,27 +319,38 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
             <div className="barcode-camera-controls">
               {cameraState?.torchSupported && (
                 <button
-                  className="button button-secondary"
+                  className="barcode-torch-button"
                   type="button"
+                  aria-label={cameraState.torchOn ? 'Desativar lanterna' : 'Ativar lanterna'}
                   aria-pressed={cameraState.torchOn}
                   onClick={toggleTorch}
                   disabled={torchBusy}
                 >
-                  {cameraState.torchOn ? 'Desativar lanterna' : 'Ativar lanterna'}
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="none"
+                    stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"
+                    aria-hidden="true" focusable="false">
+                    <path d="M7 6h10v4l-3 3v8h-4v-8l-3-3Z M7 9h10 M12 15v2" />
+                    <g className="barcode-torch-rays"><path d="M12 1v2 M5 2l2 2 M19 2l-2 2" /></g>
+                  </svg>
                 </button>
               )}
               {cameraState?.zoom && (
                 <label className="barcode-zoom">
-                  <span>Zoom: {cameraState.zoom.value.toFixed(1)}×</span>
+                  <span id="barcode-zoom-value">
+                    {cameraState.zoom.value === null ? 'Zoom não informado' : `Zoom: ${cameraState.zoom.value.toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 8, useGrouping: false })}×`}
+                  </span>
                   <input
                     type="range"
                     aria-label="Zoom da câmera"
                     min={cameraState.zoom.min}
                     max={cameraState.zoom.max}
                     step={cameraState.zoom.step}
-                    value={cameraState.zoom.value}
+                    aria-describedby="barcode-zoom-value"
+                    aria-busy={zoomPending}
+                    value={zoomDraft ?? cameraState.zoom.value ?? cameraState.zoom.min}
                     onChange={(event) => changeZoom(Number(event.target.value))}
                   />
+                  {zoomPending && <span className="barcode-zoom-pending">Ajustando zoom...</span>}
                 </label>
               )}
             </div>
