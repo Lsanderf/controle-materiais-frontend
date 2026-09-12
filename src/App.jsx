@@ -42,11 +42,11 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
             <Route
               path="/movimentacoes/retirada"
-              element={<MovementFormPage type="RETIRADA" />}
+              element={<MovementFormPage key="RETIRADA" type="RETIRADA" />}
             />
             <Route
               path="/movimentacoes/devolucao"
-              element={<MovementFormPage type="DEVOLUCAO" />}
+              element={<MovementFormPage key="DEVOLUCAO" type="DEVOLUCAO" />}
             />
             <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
             <Route

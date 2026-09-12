@@ -1,3 +1,8 @@
+import {
+  INVALID_NFE_ACCESS_KEY_MESSAGE,
+  isValidNfeAccessKey,
+} from './nfeBarcode.js';
+
 const MANAGER_ROLES = new Set(['ADMIN', 'OPERADOR']);
 const MAX_ITEM_QUANTITY = 10000;
 
@@ -85,6 +90,10 @@ export function validateNotaFiscalForm(form) {
   if (onlyDigits(form.chaveAcesso).length !== 44) {
     return 'A chave de acesso deve conter exatamente 44 digitos.';
   }
+  const accessKeyCheckDigitError = validateNfeAccessKeyCheckDigit(
+    form.chaveAcesso,
+  );
+  if (accessKeyCheckDigitError) return accessKeyCheckDigitError;
   if (!form.fornecedor.trim()) return 'Informe o fornecedor.';
   if (!form.cnpjFornecedor.trim()) return 'Informe o CNPJ do fornecedor.';
   if (onlyDigits(form.cnpjFornecedor).length !== 14) {
@@ -116,6 +125,21 @@ export function validateNotaFiscalForm(form) {
   }
 
   return '';
+}
+
+export function validateNfeAccessKeyCheckDigit(value) {
+  const trimmed = String(value ?? '').trim();
+  if (
+    !trimmed ||
+    !/^[0-9.\-/\s]+$/.test(trimmed) ||
+    onlyDigits(trimmed).length !== 44
+  ) {
+    return '';
+  }
+
+  return isValidNfeAccessKey(trimmed)
+    ? ''
+    : INVALID_NFE_ACCESS_KEY_MESSAGE;
 }
 
 export function filterNotasFiscais(notasFiscais, search, status) {

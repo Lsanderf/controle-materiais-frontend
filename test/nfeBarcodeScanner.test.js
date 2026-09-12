@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  calculateNfeCheckDigit,
   cameraAccessErrorMessage,
   createNfeScanSession,
+  isValidNfeAccessKey,
   normalizeNfeBarcode,
 } from '../src/utils/nfeBarcode.js';
 
-const VALID_ACCESS_KEY = '12345678901234567890123456789012345678901234';
+const VALID_ACCESS_KEY = '52060433009911002506550120000007800267301615';
 
 test('chave NF-e válida com 44 dígitos é aceita', () => {
   assert.equal(normalizeNfeBarcode(VALID_ACCESS_KEY), VALID_ACCESS_KEY);
@@ -21,6 +23,25 @@ test('caracteres de formatação são removidos da chave detectada', () => {
 test('códigos menores ou maiores que 44 dígitos são ignorados', () => {
   assert.equal(normalizeNfeBarcode(VALID_ACCESS_KEY.slice(0, 43)), null);
   assert.equal(normalizeNfeBarcode(`${VALID_ACCESS_KEY}5`), null);
+});
+
+test('chave com DV inválido ou um único dígito alterado é rejeitada', () => {
+  const invalidCheckDigit = `${VALID_ACCESS_KEY.slice(0, 43)}4`;
+  const changedDigit = `6${VALID_ACCESS_KEY.slice(1)}`;
+
+  assert.equal(isValidNfeAccessKey(invalidCheckDigit), false);
+  assert.equal(isValidNfeAccessKey(changedDigit), false);
+  assert.equal(normalizeNfeBarcode(invalidCheckDigit), null);
+});
+
+test('DV igual a zero é calculado para os restos zero e um', () => {
+  const remainderZero = '0'.repeat(43);
+  const remainderOne = `${'0'.repeat(42)}6`;
+
+  assert.equal(calculateNfeCheckDigit(remainderZero), 0);
+  assert.equal(calculateNfeCheckDigit(remainderOne), 0);
+  assert.equal(isValidNfeAccessKey(`${remainderZero}0`), true);
+  assert.equal(isValidNfeAccessKey(`${remainderOne}0`), true);
 });
 
 test('callback válido acontece uma vez e interrompe o scanner', () => {
@@ -51,6 +72,27 @@ test('código inválido mantém scanner ativo', () => {
   assert.equal(session.handleDetection('123'), false);
   assert.equal(session.isStopped(), false);
   assert.equal(invalidDetections, 1);
+});
+
+test('scanner rejeita 44 dígitos com DV inválido e informa o motivo', () => {
+  let rejectionReason;
+  let detections = 0;
+  const session = createNfeScanSession({
+    onDetected: () => {
+      detections += 1;
+    },
+    onInvalid: (reason) => {
+      rejectionReason = reason;
+    },
+  });
+
+  assert.equal(
+    session.handleDetection(`${VALID_ACCESS_KEY.slice(0, 43)}4`),
+    false,
+  );
+  assert.equal(rejectionReason, 'INVALID_CHECK_DIGIT');
+  assert.equal(detections, 0);
+  assert.equal(session.isStopped(), false);
 });
 
 test('cancelamento encerra controles e recursos apenas uma vez', () => {
@@ -114,4 +156,6 @@ test('chave detectada preenche o formulário sem remover a digitação manual', 
     /onChange=\{\(event\) => change\('chaveAcesso', event\.target\.value\)\}/,
   );
   assert.match(source, /Escanear código de barras/);
+  assert.match(source, /accessKeyCheckDigitError/);
+  assert.match(source, /aria-invalid=\{Boolean\(accessKeyCheckDigitError\)\}/);
 });

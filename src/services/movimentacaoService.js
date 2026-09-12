@@ -1,5 +1,6 @@
 import { apiBlobRequest, apiRequest } from './api';
 import { createSignatureFormData } from '../utils/signature';
+import { createMovementFormData } from '../utils/movementEvidence';
 
 export const movimentacaoService = {
   list: () => apiRequest('/movimentacoes'),
@@ -14,6 +15,8 @@ export const movimentacaoService = {
   byFuncionario: (id) => apiRequest(`/movimentacoes/funcionario/${id}`),
   byContrato: (id) => apiRequest(`/movimentacoes/contrato/${id}`),
   byMaterial: (id) => apiRequest(`/movimentacoes/material/${id}`),
-  create: (movement) =>
-    apiRequest('/movimentacoes', { method: 'POST', body: movement }),
+  create: (movement, signature, photo) =>
+    apiRequest('/movimentacoes', {
+      method: 'POST', body: createMovementFormData(movement, signature, photo),
+    }),
 };

@@ -5,8 +5,12 @@ import {
   releaseVideoStream,
 } from '../utils/nfeBarcode';
 
-const INVALID_BARCODE_MESSAGE =
-  'Código detectado não corresponde a uma chave NF-e de 44 dígitos.';
+const INVALID_BARCODE_MESSAGES = {
+  INVALID_LENGTH:
+    'Código detectado não corresponde a uma chave NF-e de 44 dígitos.',
+  INVALID_CHECK_DIGIT:
+    'Chave NF-e detectada, mas o dígito verificador é inválido. Tente novamente.',
+};
 
 function unsupportedCameraError() {
   const error = new Error('Camera API unavailable');
@@ -59,9 +63,9 @@ export default function NotaFiscalBarcodeScanner({ onDetected, onCancel }) {
         if (!mountedRef.current || sessionRef.current !== session) return;
         onDetectedRef.current(accessKey);
       },
-      onInvalid: () => {
+      onInvalid: (reason) => {
         if (mountedRef.current && sessionRef.current === session) {
-          setScanNotice(INVALID_BARCODE_MESSAGE);
+          setScanNotice(INVALID_BARCODE_MESSAGES[reason]);
         }
       },
       onStop: () => releaseVideoStream(videoRef.current),

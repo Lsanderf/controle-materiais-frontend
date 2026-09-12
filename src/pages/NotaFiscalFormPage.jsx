@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import NotaFiscalBarcodeScanner from '../components/NotaFiscalBarcodeScanner';
+import NotaFiscalMaterialDialog from '../components/NotaFiscalMaterialDialog';
 import {
   EmptyState,
   ErrorMessage,
@@ -18,22 +19,46 @@ import {
   formatCnpj,
   formFromNotaFiscal,
   todayIsoDate,
+  validateNfeAccessKeyCheckDigit,
   validateNotaFiscalForm,
 } from '../utils/notaFiscal';
+import {
+  associateImportedMaterial,
+  formFromImportedNfe,
+  hasUnmappedImportedItems,
+  nfeXmlComparisonKey,
+} from '../utils/nfeXmlImport';
+
+// Local identity survives edits/removals and is excluded by buildNotaFiscalPayload.
+let nextItemId = 0;
+
+function identifyItems(form) {
+  return {
+    ...form,
+    itens: form.itens.map((item) => ({
+      ...item,
+      localId: item.localId ?? `nf-item-${++nextItemId}`,
+    })),
+  };
+}
 
 export default function NotaFiscalFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { role } = useAuth();
   const editing = Boolean(id);
-  const [form, setForm] = useState(emptyNotaFiscalForm);
+  const [form, setForm] = useState(() => identifyItems(emptyNotaFiscalForm()));
   const [materials, setMaterials] = useState([]);
   const [notaFiscal, setNotaFiscal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importingXml, setImportingXml] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
   const [scannerOpen, setScannerOpen] = useState(false);
+  const [materialCreationItem, setMaterialCreationItem] = useState(null);
+  const xmlInputRef = useRef(null);
+  const canCreateMaterial = role === 'ADMIN';
 
   useEffect(() => {
     let active = true;
@@ -47,7 +72,7 @@ export default function NotaFiscalFormPage() {
         setMaterials(loadedMaterials);
         setNotaFiscal(loadedNotaFiscal);
         if (loadedNotaFiscal) {
-          setForm(formFromNotaFiscal(loadedNotaFiscal));
+          setForm(identifyItems(formFromNotaFiscal(loadedNotaFiscal)));
         }
       })
       .catch((requestError) => {
@@ -63,6 +88,14 @@ export default function NotaFiscalFormPage() {
   }, [editing, id]);
 
   const clientError = useMemo(() => validateNotaFiscalForm(form), [form]);
+  const accessKeyCheckDigitError = useMemo(
+    () => validateNfeAccessKeyCheckDigit(form.chaveAcesso),
+    [form.chaveAcesso],
+  );
+  const unmappedImportedItems = useMemo(
+    () => hasUnmappedImportedItems(form),
+    [form],
+  );
   const blocked = editing && notaFiscal?.status === 'CONFIRMADA';
 
   function change(field, value) {
@@ -88,11 +121,38 @@ export default function NotaFiscalFormPage() {
     }));
   }
 
+  function associateMaterial(index, materialId) {
+    setError(null);
+    setSuccess('');
+    setForm((current) =>
+      associateImportedMaterial(current, index, materialId));
+  }
+
   function addItem() {
-    setForm((current) => ({
+    setForm((current) => identifyItems({
       ...current,
       itens: [...current.itens, emptyNotaFiscalItem()],
     }));
+  }
+
+  function openMaterialCreation(item) {
+    if (!canCreateMaterial || importingXml || saving || materialCreationItem) return;
+    setMaterialCreationItem(item);
+  }
+
+  function handleMaterialCreated(material) {
+    const originId = materialCreationItem.localId;
+    setMaterials((current) => [
+      ...current.filter((existing) => String(existing.id) !== String(material.id)),
+      material,
+    ]);
+    setForm((current) => {
+      const index = current.itens.findIndex((item) => item.localId === originId);
+      return associateImportedMaterial(current, index, material.id);
+    });
+    setMaterialCreationItem(null);
+    setError(null);
+    setSuccess('Material criado e associado ao item.');
   }
 
   function removeItem(index) {
@@ -100,6 +160,37 @@ export default function NotaFiscalFormPage() {
       ...current,
       itens: current.itens.filter((_, itemIndex) => itemIndex !== index),
     }));
+  }
+
+  async function handleXmlSelection(event) {
+    const arquivo = event.target.files?.[0];
+    event.target.value = '';
+    if (!arquivo) return;
+
+    const chaveAcessoInformada = nfeXmlComparisonKey(form.chaveAcesso);
+    setError(null);
+    setSuccess('');
+    setImportingXml(true);
+
+    try {
+      const importedNfe = await notaFiscalService.importXml(arquivo, {
+        chaveAcessoInformada,
+        notaFiscalId: editing ? id : undefined,
+      });
+      const importedForm = identifyItems(formFromImportedNfe(
+        form,
+        importedNfe,
+        chaveAcessoInformada,
+      ));
+      setForm(importedForm);
+      setSuccess(
+        'XML lido com sucesso. Revise os dados e associe cada produto a um material.',
+      );
+    } catch (requestError) {
+      setError(requestError);
+    } finally {
+      setImportingXml(false);
+    }
   }
 
   async function handleSubmit(event) {
@@ -164,6 +255,39 @@ export default function NotaFiscalFormPage() {
         <ErrorMessage error={error} />
         <SuccessMessage>{success}</SuccessMessage>
 
+        <section className="nfe-xml-import-panel" aria-labelledby="xml-import-title">
+          <div>
+            <h2 id="xml-import-title">Preencher pelo XML</h2>
+            <p>
+              O arquivo é apenas lido para preencher este rascunho. Revise os
+              dados antes de salvar.
+            </p>
+          </div>
+          <input
+            ref={xmlInputRef}
+            className="visually-hidden-file-input"
+            type="file"
+            accept=".xml,application/xml,text/xml"
+            onChange={handleXmlSelection}
+            tabIndex="-1"
+          />
+          <button
+            className="button button-secondary"
+            type="button"
+            disabled={importingXml || saving}
+            onClick={() => xmlInputRef.current?.click()}
+          >
+            {importingXml ? (
+              <>
+                <span className="spinner" aria-hidden="true" />
+                Lendo Nota Fiscal...
+              </>
+            ) : (
+              'Importar XML da NF-e'
+            )}
+          </button>
+        </section>
+
         <div className="form-grid">
           <label className="field">
             <span>Numero</span>
@@ -207,9 +331,26 @@ export default function NotaFiscalFormPage() {
               required
               maxLength="80"
               inputMode="numeric"
+              aria-invalid={Boolean(accessKeyCheckDigitError)}
+              aria-describedby={
+                accessKeyCheckDigitError
+                  ? 'nota-fiscal-chave-ajuda nota-fiscal-chave-erro'
+                  : 'nota-fiscal-chave-ajuda'
+              }
               placeholder="44 digitos da NF-e"
             />
-            <small>Use a chave com 44 digitos, com ou sem formatacao.</small>
+            <small id="nota-fiscal-chave-ajuda">
+              Use a chave com 44 digitos, com ou sem formatacao.
+            </small>
+            {accessKeyCheckDigitError && (
+              <small
+                id="nota-fiscal-chave-erro"
+                className="field-error"
+                role="alert"
+              >
+                {accessKeyCheckDigitError}
+              </small>
+            )}
           </div>
 
           <label className="field">
@@ -250,7 +391,7 @@ export default function NotaFiscalFormPage() {
           <div className="section-heading">
             <div>
               <h2>Itens da nota fiscal</h2>
-              <p>Selecione materiais existentes e informe os valores da API.</p>
+              <p>Associe cada item a um material e informe a quantidade e o valor unitário.</p>
             </div>
             <button
               className="button button-secondary"
@@ -261,11 +402,22 @@ export default function NotaFiscalFormPage() {
             </button>
           </div>
 
-          {materials.length === 0 ? (
-            <div className="alert alert-warning">
-              Cadastre materiais antes de incluir itens na nota fiscal.
+          {unmappedImportedItems && (
+            <div className="alert alert-warning" role="status">
+              Associe todos os produtos importados a materiais internos para
+              salvar a nota fiscal.
             </div>
-          ) : form.itens.length === 0 ? (
+          )}
+
+          {materials.length === 0 && (
+            <div className="alert alert-warning">
+              {canCreateMaterial
+                ? 'Nenhum material cadastrado. Use “+ Criar material” no item para começar.'
+                : 'Nenhum material cadastrado. Solicite o cadastro a um administrador.'}
+            </div>
+          )}
+
+          {form.itens.length === 0 ? (
             <EmptyState
               title="Nenhum item adicionado."
               description="O rascunho pode ser salvo sem itens, mas so uma NF com itens pode ser confirmada."
@@ -278,13 +430,73 @@ export default function NotaFiscalFormPage() {
                 );
 
                 return (
-                  <div className="invoice-item-row" key={`${index}-${item.materialId}`}>
-                    <label className="field invoice-material-field">
-                      <span>Material</span>
+                  <div
+                    className={`invoice-item-row${
+                      item.origemXml && !item.materialId
+                        ? ' invoice-item-row-unmapped'
+                        : ''
+                    }`}
+                    key={item.localId}
+                  >
+                    {item.origemXml && (
+                      <div className="invoice-imported-product">
+                        <div className="invoice-imported-product-heading">
+                          <span className="eyebrow">
+                            Item {item.origemXml.numeroItem} do XML
+                          </span>
+                          <span
+                            className={`badge ${
+                              item.materialId
+                                ? 'badge-active'
+                                : 'badge-pending'
+                            }`}
+                          >
+                            {item.materialId
+                              ? 'Material associado'
+                              : 'Aguardando associação'}
+                          </span>
+                        </div>
+                        <strong>{item.origemXml.descricaoProduto}</strong>
+                        <dl className="invoice-imported-product-details">
+                          <div>
+                            <dt>Código do fornecedor</dt>
+                            <dd>{item.origemXml.codigoProduto || '-'}</dd>
+                          </div>
+                          <div>
+                            <dt>Quantidade no XML</dt>
+                            <dd>
+                              {item.origemXml.quantidadeComercial}{' '}
+                              {item.origemXml.unidadeComercial}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Valor unitário</dt>
+                            <dd>
+                              {item.origemXml.valorUnitarioComercial || '-'}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt>Valor total</dt>
+                            <dd>{item.origemXml.valorTotal || '-'}</dd>
+                          </div>
+                          <div>
+                            <dt>EAN/GTIN</dt>
+                            <dd>{item.origemXml.eanGtin || 'Não informado'}</dd>
+                          </div>
+                        </dl>
+                      </div>
+                    )}
+                    <div className="field invoice-material-field">
+                      <label htmlFor={`material-${item.localId}`}>
+                        {item.origemXml
+                          ? 'Material correspondente'
+                          : 'Material'}
+                      </label>
                       <select
+                        id={`material-${item.localId}`}
                         value={item.materialId}
                         onChange={(event) =>
-                          changeItem(index, 'materialId', event.target.value)
+                          associateMaterial(index, event.target.value)
                         }
                         required
                       >
@@ -295,13 +507,28 @@ export default function NotaFiscalFormPage() {
                           </option>
                         ))}
                       </select>
+                      {canCreateMaterial && (
+                        <button
+                          className="button button-secondary invoice-create-material"
+                          type="button"
+                          disabled={importingXml || saving}
+                          onClick={() => openMaterialCreation(item)}
+                        >
+                          + Criar material
+                        </button>
+                      )}
                       {selectedMaterial && (
                         <small>
                           {selectedMaterial.descricao} | Estoque atual:{' '}
                           <strong>{selectedMaterial.quantidadeEstoque} un.</strong>
                         </small>
                       )}
-                    </label>
+                      {item.origemXml && !selectedMaterial && (
+                        <small className="field-error">
+                          Selecione o material interno deste produto.
+                        </small>
+                      )}
+                    </div>
 
                     <label className="field">
                       <span>Quantidade</span>
@@ -355,7 +582,16 @@ export default function NotaFiscalFormPage() {
           >
             Cancelar
           </Link>
-          <button className="button button-primary" type="submit" disabled={saving}>
+          <button
+            className="button button-primary"
+            type="submit"
+            disabled={
+              saving ||
+              importingXml ||
+              unmappedImportedItems ||
+              Boolean(accessKeyCheckDigitError)
+            }
+          >
             {saving
               ? 'Salvando...'
               : editing
@@ -364,6 +600,15 @@ export default function NotaFiscalFormPage() {
           </button>
         </div>
       </form>
+
+      {materialCreationItem && canCreateMaterial && (
+        <NotaFiscalMaterialDialog
+          key={materialCreationItem.localId}
+          item={materialCreationItem}
+          onCreated={handleMaterialCreated}
+          onCancel={() => setMaterialCreationItem(null)}
+        />
+      )}
 
       {scannerOpen && (
         <NotaFiscalBarcodeScanner

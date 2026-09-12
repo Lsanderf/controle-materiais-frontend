@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ErrorMessage, Loading, MovementBadge, SuccessMessage } from './Feedback';
 import SignaturePad from './SignaturePad';
@@ -12,7 +12,88 @@ import {
   formatNotaFiscalDate,
 } from '../utils/notaFiscal';
 
+function EvidenceTechnicalDetails({ evidence }) {
+  const detailsId = useId();
+  const [open, setOpen] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [copyFeedback, setCopyFeedback] = useState('');
+
+  async function copyHash() {
+    setCopying(true);
+    setCopyFeedback('');
+    try {
+      await navigator.clipboard.writeText(evidence.sha256);
+      setCopyFeedback('Hash copiado.');
+    } catch {
+      setCopyFeedback('Não foi possível copiar. Selecione e copie o hash acima.');
+    } finally {
+      setCopying(false);
+    }
+  }
+
+  return (
+    <div className="receipt-evidence-details">
+      <button
+        className="receipt-details-toggle"
+        type="button"
+        aria-expanded={open}
+        aria-controls={detailsId}
+        onClick={() => {
+          setOpen(!open);
+          setCopyFeedback('');
+        }}
+      >
+        <span aria-hidden="true">{open ? '▾' : '▸'}</span> Detalhes técnicos
+      </button>
+      <div id={detailsId} hidden={!open}>
+        <dl className="receipt-meta-list">
+          <div>
+            <dt>Algoritmo</dt>
+            <dd>SHA-256</dd>
+          </div>
+          <div>
+            <dt>Tipo da evidência</dt>
+            <dd>{evidence.tipo === 'FOTO_DEVOLUCAO' ? 'Foto do material devolvido' : 'Assinatura'}</dd>
+          </div>
+          {evidence.tamanhoBytes != null && (
+            <div>
+              <dt>Tamanho do arquivo</dt>
+              <dd>{evidence.tamanhoBytes.toLocaleString('pt-BR')} bytes</dd>
+            </div>
+          )}
+          {evidence.dataEvidencia && (
+            <div>
+              <dt>Data e hora de registro</dt>
+              <dd>{formatDateTime(evidence.dataEvidencia)}</dd>
+            </div>
+          )}
+          <div className="receipt-meta-wide">
+            <dt>Hash</dt>
+            <dd>
+              {evidence.sha256
+                ? <code className="receipt-evidence-hash">{evidence.sha256}</code>
+                : 'Não informado'}
+            </dd>
+          </div>
+        </dl>
+        {evidence.sha256 && (
+          <button
+            className="button button-secondary receipt-copy-hash"
+            type="button"
+            disabled={copying}
+            onClick={copyHash}
+          >
+            Copiar hash
+          </button>
+        )}
+        <p className="receipt-copy-feedback" role="status">{copyFeedback}</p>
+      </div>
+    </div>
+  );
+}
+
 function EvidencePreview({ evidence }) {
+  const isPhoto = evidence.tipo === 'FOTO_DEVOLUCAO';
   const [imageUrl, setImageUrl] = useState('');
   const [error, setError] = useState(null);
 
@@ -26,6 +107,8 @@ function EvidencePreview({ evidence }) {
       .getEvidenceFile(evidence.urlArquivo)
       .then((blob) => {
         if (!active) return;
+        // O endpoint só entrega o arquivo após validar SHA-256 e tamanho no backend.
+        // O hash salvo no comprovante, sozinho, não confirma essa verificação.
         objectUrl = URL.createObjectURL(blob);
         setImageUrl(objectUrl);
       })
@@ -43,7 +126,7 @@ function EvidencePreview({ evidence }) {
     <div className="receipt-evidence">
       <div className="receipt-evidence-heading">
         <div>
-          <strong>Assinatura do funcionário</strong>
+          <strong>{isPhoto ? 'Foto do material devolvido' : 'Assinatura do funcionário'}</strong>
           <small>{formatDateTime(evidence.dataEvidencia) ?? 'Data não informada'}</small>
         </div>
         <span className="receipt-evidence-status">Registrada</span>
@@ -51,15 +134,15 @@ function EvidencePreview({ evidence }) {
 
       {imageUrl ? (
         <img
-          className="receipt-signature"
+          className={isPhoto ? 'receipt-return-photo' : 'receipt-signature'}
           src={imageUrl}
-          alt={`Assinatura de ${evidence.funcionario?.nome ?? 'funcionário'}`}
+          alt={isPhoto ? 'Material devolvido' : `Assinatura de ${evidence.funcionario?.nome ?? 'funcionário'}`}
         />
       ) : error ? (
-        <p className="muted">Não foi possível carregar a imagem da assinatura.</p>
+        <p className="muted">Não foi possível carregar {isPhoto ? 'a foto do material' : 'a imagem da assinatura'}.</p>
       ) : (
         <div className="receipt-image-loading" role="status">
-          Carregando assinatura...
+          {isPhoto ? 'Carregando foto...' : 'Carregando assinatura...'}
         </div>
       )}
 
@@ -72,13 +155,17 @@ function EvidencePreview({ evidence }) {
           <dt>Anexada por</dt>
           <dd>{evidence.registradaPor?.username ?? 'Não informado'}</dd>
         </div>
-        <div>
-          <dt>Integridade</dt>
-          <dd className="monospace-cell" title={evidence.sha256}>
-            SHA-256 {evidence.sha256?.slice(0, 12)}…
-          </dd>
-        </div>
       </dl>
+
+      <p className="receipt-integrity" role="status">
+        {imageUrl ? (
+          <>
+            <span><span aria-hidden="true">✓ </span>Integridade verificada</span>
+            <small>Nenhuma alteração detectada desde o armazenamento.</small>
+          </>
+        ) : error ? 'Não foi possível verificar a integridade.' : 'Verificando integridade...'}
+      </p>
+      <EvidenceTechnicalDetails evidence={evidence} />
     </div>
   );
 }
@@ -131,6 +218,9 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
     (evidence) => evidence.tipo === 'ASSINATURA',
   );
   const mayAddSignature = canAddSignature(receipt, role);
+  const photo = receipt.tipo === 'DEVOLUCAO'
+    ? receipt.evidencias?.find((evidence) => evidence.tipo === 'FOTO_DEVOLUCAO')
+    : null;
 
   return (
     <>
@@ -209,10 +299,10 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
           <NotaFiscalEvidence notaFiscal={receipt.notaFiscal} onNavigate={onNavigate} />
         )}
         {signature ? (
-          <EvidencePreview evidence={signature} />
+          <EvidencePreview key={`${signature.id}:${signature.urlArquivo}`} evidence={signature} />
         ) : !receipt.notaFiscal ? (
           <div className="receipt-evidence-empty">
-            <strong>Assinatura ainda não registrada</strong>
+            <strong>Registro histórico sem assinatura</strong>
             <span>
               A movimentação permanece comprovada pelos dados imutáveis acima.
             </span>
@@ -227,6 +317,7 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
             )}
           </div>
         ) : null}
+        {photo && <EvidencePreview key={`${photo.id}:${photo.urlArquivo}`} evidence={photo} />}
       </section>
     </>
   );

@@ -10,6 +10,20 @@ export const notaFiscalService = {
       method: 'PUT',
       body: notaFiscal,
     }),
+  importXml: (arquivo, { chaveAcessoInformada, notaFiscalId } = {}) => {
+    const body = new FormData();
+    body.append('arquivo', arquivo);
+    if (chaveAcessoInformada) {
+      body.append('chaveAcessoInformada', chaveAcessoInformada);
+    }
+    if (notaFiscalId) {
+      body.append('notaFiscalId', String(notaFiscalId));
+    }
+    return apiRequest('/notas-fiscais/importar-xml', {
+      method: 'POST',
+      body,
+    });
+  },
   confirm: (id) =>
     apiRequest(`/notas-fiscais/${id}/confirmar`, { method: 'POST' }),
 };

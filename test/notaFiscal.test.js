@@ -12,9 +12,14 @@ import {
   todayIsoDate,
   validateNotaFiscalForm,
 } from '../src/utils/notaFiscal.js';
+import {
+  INVALID_NFE_ACCESS_KEY_MESSAGE,
+  calculateNfeCheckDigit,
+} from '../src/utils/nfeBarcode.js';
 
 function chave(value) {
-  return String(value).padStart(44, '0');
+  const withoutCheckDigit = String(value).padStart(43, '0');
+  return `${withoutCheckDigit}${calculateNfeCheckDigit(withoutCheckDigit)}`;
 }
 
 function validForm() {
@@ -133,6 +138,16 @@ test('validacao exibe erro amigavel antes do envio', () => {
   form.itens[0].quantidade = '10001';
 
   assert.match(validateNotaFiscalForm(form), /quantidade maxima/);
+});
+
+test('digitação manual com DV inválido impede o envio', () => {
+  const form = validForm();
+  const currentCheckDigit = Number(form.chaveAcesso.at(-1));
+  form.chaveAcesso = `${form.chaveAcesso.slice(0, 43)}${
+    (currentCheckDigit + 1) % 10
+  }`;
+
+  assert.equal(validateNotaFiscalForm(form), INVALID_NFE_ACCESS_KEY_MESSAGE);
 });
 
 test('tratamento de erro da API preserva mensagem e campos', () => {

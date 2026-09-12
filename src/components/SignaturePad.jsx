@@ -47,11 +47,19 @@ export default function SignaturePad({
   error = null,
   onConfirm,
   onCancel,
+  confirmLabel = 'Confirmar assinatura',
+  savingLabel = 'Salvando assinatura...',
+  summary,
+  children,
 }) {
   const canvasRef = useRef(null);
   const drawingRef = useRef(false);
   const lastPointRef = useRef(null);
   const cancelButtonRef = useRef(null);
+  const dialogRef = useRef(null);
+  const submittingRef = useRef(false);
+  const [capturing, setCapturing] = useState(false);
+  const busy = saving || capturing;
   const [hasInk, setHasInk] = useState(false);
   const [captureError, setCaptureError] = useState(null);
 
@@ -77,21 +85,23 @@ export default function SignaturePad({
     const canvas = canvasRef.current;
     if (!canvas) return undefined;
 
+    const dialog = dialogRef.current;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = 'hidden';
     resizeCanvas();
     const observer = new ResizeObserver(resizeCanvas);
     observer.observe(canvas);
     cancelButtonRef.current?.focus();
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
   }, [resizeCanvas]);
-
-  useEffect(() => {
-    function cancelOnEscape(event) {
-      if (event.key === 'Escape' && !saving) onCancel();
-    }
-    window.addEventListener('keydown', cancelOnEscape);
-    return () => window.removeEventListener('keydown', cancelOnEscape);
-  }, [onCancel, saving]);
 
   function pointFromEvent(event) {
     const rect = event.currentTarget.getBoundingClientRect();
@@ -102,7 +112,7 @@ export default function SignaturePad({
   }
 
   function startDrawing(event) {
-    if (saving || event.button > 0) return;
+    if (busy || event.button > 0) return;
     event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
     drawingRef.current = true;
@@ -118,7 +128,7 @@ export default function SignaturePad({
   }
 
   function continueDrawing(event) {
-    if (!drawingRef.current || saving) return;
+    if (!drawingRef.current || busy) return;
     event.preventDefault();
 
     const point = pointFromEvent(event);
@@ -142,37 +152,38 @@ export default function SignaturePad({
   }
 
   async function confirmSignature() {
-    if (!canSubmitSignature(hasInk, saving)) {
+    if (submittingRef.current) return;
+    if (!canSubmitSignature(hasInk, busy)) {
       setCaptureError(new Error('Faça a assinatura antes de confirmar.'));
       return;
     }
 
     setCaptureError(null);
+    submittingRef.current = true;
+    setCapturing(true);
     try {
       const blob = await canvasToPngBlob(canvasRef.current);
       await onConfirm(blob);
     } catch (conversionError) {
       setCaptureError(conversionError);
+    } finally {
+      submittingRef.current = false;
+      setCapturing(false);
     }
   }
 
-  function cancelFromBackdrop() {
-    if (!saving) onCancel();
-  }
-
   return (
-    <div
-      className="dialog-backdrop signature-backdrop"
-      role="presentation"
-      onPointerDown={cancelFromBackdrop}
-    >
-      <section
+      <dialog
+        ref={dialogRef}
         className="dialog signature-dialog"
-        role="dialog"
         aria-modal="true"
         aria-labelledby="signature-dialog-title"
-        onPointerDown={(event) => event.stopPropagation()}
+        onCancel={(event) => {
+          event.preventDefault();
+          if (!busy) onCancel();
+        }}
       >
+        <div className="signature-dialog-body">
         <header className="signature-dialog-header">
           <span className="eyebrow">Comprovação da movimentação</span>
           <h2 id="signature-dialog-title">Assinatura do responsável</h2>
@@ -182,6 +193,7 @@ export default function SignaturePad({
           </p>
         </header>
 
+        {summary}
         <ErrorMessage error={captureError ?? error} />
 
         <div className="signature-canvas-frame">
@@ -207,19 +219,21 @@ export default function SignaturePad({
             className="button button-secondary"
             type="button"
             onClick={clearCanvas}
-            disabled={!hasInk || saving}
+            disabled={!hasInk || busy}
           >
             Limpar
           </button>
         </div>
 
+        {children && <fieldset className="signature-extra" disabled={busy}>{children}</fieldset>}
+        </div>
         <footer className="signature-dialog-actions">
           <button
             ref={cancelButtonRef}
             className="button button-secondary"
             type="button"
             onClick={onCancel}
-            disabled={saving}
+            disabled={busy}
           >
             Cancelar
           </button>
@@ -227,12 +241,11 @@ export default function SignaturePad({
             className="button button-primary"
             type="button"
             onClick={confirmSignature}
-            disabled={!canSubmitSignature(hasInk, saving)}
+            disabled={!canSubmitSignature(hasInk, busy)}
           >
-            {saving ? 'Salvando assinatura...' : 'Confirmar assinatura'}
+            {busy ? savingLabel : confirmLabel}
           </button>
         </footer>
-      </section>
-    </div>
+      </dialog>
   );
 }

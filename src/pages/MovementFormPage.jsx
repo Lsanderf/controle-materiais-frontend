@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import ConfirmDialog from '../components/ConfirmDialog';
 import SignaturePad from '../components/SignaturePad';
+import ReturnPhotoPicker from '../components/ReturnPhotoPicker';
+import MovementReceiptModal from '../components/MovementReceiptModal';
+import { useAuth } from '../context/useAuth';
 import {
   EmptyState,
   ErrorMessage,
@@ -14,7 +16,6 @@ import { funcionarioService } from '../services/funcionarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
-import { isSignatureConflict } from '../utils/signature';
 
 const descriptions = {
   RETIRADA: 'Registre a entrega de materiais para uso em um contrato.',
@@ -22,6 +23,8 @@ const descriptions = {
 };
 
 export default function MovementFormPage({ type }) {
+  const { role } = useAuth();
+  const canRegister = ['ADMIN', 'OPERADOR'].includes(role) && ['RETIRADA', 'DEVOLUCAO'].includes(type);
   const [searchParams] = useSearchParams();
   const initialMaterial = searchParams.get('material') ?? '';
   const [form, setForm] = useState({
@@ -36,10 +39,9 @@ export default function MovementFormPage({ type }) {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
   const [createdMovement, setCreatedMovement] = useState(null);
-  const [signatureOpen, setSignatureOpen] = useState(false);
-  const [signatureSaving, setSignatureSaving] = useState(false);
-  const [signatureError, setSignatureError] = useState(null);
-  const [signatureRegistered, setSignatureRegistered] = useState(false);
+  const [photo, setPhoto] = useState(null);
+  const [receiptOpen, setReceiptOpen] = useState(false);
+  const submittingRef = useRef(false);
   const [employeeMovements, setEmployeeMovements] = useState([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
 
@@ -54,6 +56,7 @@ export default function MovementFormPage({ type }) {
   );
   const {
     data,
+    setData,
     loading,
     error: loadError,
     reload,
@@ -155,6 +158,7 @@ export default function MovementFormPage({ type }) {
 
   function prepareConfirmation(event) {
     event.preventDefault();
+    if (!canRegister || submittingRef.current) return;
     setError(null);
     if (clientError) {
       setError(new Error(clientError));
@@ -163,7 +167,13 @@ export default function MovementFormPage({ type }) {
     setConfirming(true);
   }
 
-  async function confirmMovement() {
+  async function confirmMovement(signature) {
+    if (!canRegister || submittingRef.current) return;
+    if (clientError) {
+      setError(new Error(clientError));
+      return;
+    }
+    submittingRef.current = true;
     setSaving(true);
     setError(null);
     try {
@@ -176,15 +186,19 @@ export default function MovementFormPage({ type }) {
         ...(form.observacao.trim() && {
           observacao: form.observacao.trim(),
         }),
-      });
+      }, signature, type === 'DEVOLUCAO' ? photo : null);
       setConfirming(false);
       setSuccess(`${movementLabel(type)} registrada com sucesso.`);
-      setCreatedMovement({
-        ...movement,
-        funcionarioNome: movement.funcionario ?? selectedEmployee?.nome,
-      });
-      setSignatureRegistered(false);
-      setSignatureError(null);
+      setCreatedMovement(movement);
+      setReceiptOpen(true);
+      setPhoto(null);
+      setData(([currentMaterials, currentEmployees, currentContracts]) => [
+        currentMaterials.map((material) => String(material.id) === form.materialId
+          ? { ...material, quantidadeEstoque: material.quantidadeEstoque + (type === 'RETIRADA' ? -quantity : quantity) }
+          : material),
+        currentEmployees,
+        currentContracts,
+      ]);
       setForm({
         materialId: '',
         funcionarioId: '',
@@ -192,35 +206,14 @@ export default function MovementFormPage({ type }) {
         quantidade: '',
         observacao: '',
       });
-      await reload();
+      reload().catch(() => setError(new Error(
+        'Movimentação registrada. Não foi possível atualizar a lista; consulte o estoque antes da próxima operação.',
+      )));
     } catch (requestError) {
-      setConfirming(false);
       setError(requestError);
     } finally {
+      submittingRef.current = false;
       setSaving(false);
-    }
-  }
-
-  async function saveSignature(blob) {
-    if (!createdMovement) return;
-
-    setSignatureSaving(true);
-    setSignatureError(null);
-    try {
-      await movimentacaoService.uploadSignature(createdMovement.id, blob);
-      setSignatureRegistered(true);
-      setSignatureOpen(false);
-      setSuccess('Assinatura registrada com sucesso.');
-    } catch (requestError) {
-      if (isSignatureConflict(requestError)) {
-        setSignatureRegistered(true);
-        setSignatureOpen(false);
-        setSuccess('A assinatura desta movimentação já estava registrada.');
-      } else {
-        setSignatureError(requestError);
-      }
-    } finally {
-      setSignatureSaving(false);
     }
   }
 
@@ -229,9 +222,11 @@ export default function MovementFormPage({ type }) {
       (type === 'RETIRADA' ? -quantity : quantity)
     : null;
 
-  if (loading) return <Loading label="Carregando dados da movimentacao..." />;
+  if (!canRegister) return <EmptyState title="Registro de movimentação indisponível para este perfil ou tipo." />;
 
-  if (loadError) {
+  if (loading && !data) return <Loading label="Carregando dados da movimentacao..." />;
+
+  if (loadError && !data) {
     return (
       <div>
         <ErrorMessage error={loadError} />
@@ -262,32 +257,13 @@ export default function MovementFormPage({ type }) {
       </header>
 
       <SuccessMessage>{success}</SuccessMessage>
-      <ErrorMessage error={error} />
+      <ErrorMessage error={confirming ? null : error} />
 
-      {createdMovement &&
-        ['RETIRADA', 'DEVOLUCAO'].includes(createdMovement.tipo ?? type) &&
-        !signatureRegistered && (
-          <section className="content-card signature-offer">
-            <div>
-              <span className="eyebrow">Movimentação concluída</span>
-              <h2>Coletar assinatura do funcionário</h2>
-              <p>
-                A assinatura é opcional e pode ser adicionada agora como evidência do
-                comprovante #{createdMovement.id}.
-              </p>
-            </div>
-            <button
-              className="button button-primary"
-              type="button"
-              onClick={() => {
-                setSignatureError(null);
-                setSignatureOpen(true);
-              }}
-            >
-              Coletar assinatura
-            </button>
-          </section>
-        )}
+      {createdMovement && (
+        <button className="button button-secondary" type="button" onClick={() => setReceiptOpen(true)}>
+          Ver comprovante #{createdMovement.id}
+        </button>
+      )}
 
       {employees.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
@@ -399,21 +375,24 @@ export default function MovementFormPage({ type }) {
               type="submit"
               disabled={Boolean(clientError) || balanceLoading}
             >
-              Revisar movimentacao
+              Continuar
             </button>
           </div>
         </form>
       )}
 
-      <ConfirmDialog
-        open={confirming}
-        title={`Confirmar ${movementLabel(type).toLocaleLowerCase('pt-BR')}?`}
-        loading={saving}
-        confirmLabel="Confirmar e registrar"
-        onCancel={() => setConfirming(false)}
+      {confirming && (
+      <SignaturePad
+        employeeName={selectedEmployee?.nome}
+        saving={saving}
+        error={error}
+        confirmLabel={`Confirmar ${movementLabel(type).toLocaleLowerCase('pt-BR')}`}
+        savingLabel="Registrando movimentação..."
+        onCancel={() => { if (!saving) { setConfirming(false); setError(null); } }}
         onConfirm={confirmMovement}
-      >
+        summary={
         <dl className="summary-list">
+          <div><dt>Tipo</dt><dd>{movementLabel(type)}</dd></div>
           <div>
             <dt>Material</dt>
             <dd>{selectedMaterial?.nome}</dd>
@@ -445,22 +424,14 @@ export default function MovementFormPage({ type }) {
             <dd>{projectedStock} un.</dd>
           </div>
         </dl>
-        <p className="dialog-note">
-          O servidor fara a validacao definitiva no momento do registro.
-        </p>
-      </ConfirmDialog>
+        }
+      >
+        {type === 'DEVOLUCAO' && <ReturnPhotoPicker file={photo} onChange={setPhoto} disabled={saving} />}
+      </SignaturePad>
+      )}
 
-      {signatureOpen && createdMovement && (
-        <SignaturePad
-          employeeName={createdMovement.funcionarioNome}
-          saving={signatureSaving}
-          error={signatureError}
-          onConfirm={saveSignature}
-          onCancel={() => {
-            setSignatureOpen(false);
-            setSignatureError(null);
-          }}
-        />
+      {receiptOpen && createdMovement && (
+        <MovementReceiptModal movementId={createdMovement.id} onClose={() => setReceiptOpen(false)} />
       )}
     </div>
   );

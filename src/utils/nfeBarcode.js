@@ -1,8 +1,48 @@
 export const NFE_ACCESS_KEY_LENGTH = 44;
+export const NFE_ACCESS_KEY_WITHOUT_DV_LENGTH = NFE_ACCESS_KEY_LENGTH - 1;
+export const INVALID_NFE_ACCESS_KEY_MESSAGE =
+  'Chave de acesso da NF-e inválida. Verifique os números informados.';
+
+export function calculateNfeCheckDigit(accessKeyWithoutDv) {
+  const value = String(accessKeyWithoutDv ?? '');
+  if (!/^\d{43}$/.test(value)) {
+    throw new Error('A chave sem DV deve conter exatamente 43 dígitos.');
+  }
+
+  let sum = 0;
+  let weight = 2;
+  for (let index = value.length - 1; index >= 0; index -= 1) {
+    sum += Number(value[index]) * weight;
+    weight = weight === 9 ? 2 : weight + 1;
+  }
+
+  const checkDigit = 11 - (sum % 11);
+  return checkDigit === 10 || checkDigit === 11 ? 0 : checkDigit;
+}
+
+export function inspectNfeAccessKey(value) {
+  const digits = String(value ?? '').replace(/\D/g, '');
+  const hasValidLength = digits.length === NFE_ACCESS_KEY_LENGTH;
+  const hasValidCheckDigit =
+    hasValidLength &&
+    calculateNfeCheckDigit(digits.slice(0, NFE_ACCESS_KEY_WITHOUT_DV_LENGTH)) ===
+      Number(digits.at(-1));
+
+  return {
+    digits,
+    hasValidLength,
+    hasValidCheckDigit,
+    isValid: hasValidLength && hasValidCheckDigit,
+  };
+}
+
+export function isValidNfeAccessKey(value) {
+  return inspectNfeAccessKey(value).isValid;
+}
 
 export function normalizeNfeBarcode(value) {
-  const digits = String(value ?? '').replace(/\D/g, '');
-  return digits.length === NFE_ACCESS_KEY_LENGTH ? digits : null;
+  const validation = inspectNfeAccessKey(value);
+  return validation.isValid ? validation.digits : null;
 }
 
 export function cameraAccessErrorMessage(error, secureContext) {
@@ -87,15 +127,17 @@ export function createNfeScanSession({
 
     handleDetection(value) {
       if (accepted || stopped) return false;
-      const accessKey = normalizeNfeBarcode(value);
-      if (!accessKey) {
-        onInvalid?.();
+      const validation = inspectNfeAccessKey(value);
+      if (!validation.isValid) {
+        onInvalid?.(
+          validation.hasValidLength ? 'INVALID_CHECK_DIGIT' : 'INVALID_LENGTH',
+        );
         return false;
       }
 
       accepted = true;
       stop();
-      onDetected(accessKey);
+      onDetected(validation.digits);
       return true;
     },
 
