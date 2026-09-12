@@ -1891,7 +1891,7 @@ td small {
   flex-direction: column;
   overflow-y: auto;
   overscroll-behavior: contain;
-  padding: 16px;
+  padding: 10px;
   background: #fff;
 }
 
@@ -1910,29 +1910,29 @@ td small {
 .barcode-video-frame {
   position: relative;
   width: 100%;
-  min-height: 300px;
+  flex: 0 0 auto;
   overflow: hidden;
   border-radius: 13px;
   background: #101725;
-  aspect-ratio: 3 / 4;
 }
 
 .barcode-video {
   display: block;
   width: 100%;
-  height: 100%;
-  object-fit: cover;
+  height: auto;
+  min-height: 150px;
+  object-fit: contain;
+  /* Intrinsic proportions keep the guide inside the image in portrait. */
 }
 
 .barcode-target {
   position: absolute;
   z-index: 2;
   top: 50%;
-  right: 7%;
-  left: 7%;
-  height: 28%;
-  min-height: 92px;
-  max-height: 138px;
+  right: 2%;
+  left: 2%;
+  aspect-ratio: 4 / 1;
+  max-height: 65%;
   border: 2px solid rgba(255, 255, 255, 0.96);
   border-radius: 10px;
   box-shadow:
@@ -1997,6 +1997,32 @@ td small {
   grid-template-columns: 1fr;
   gap: 9px;
   margin-top: 16px;
+}
+
+.barcode-scan-tip {
+  margin: 8px 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.barcode-camera-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 16px;
+}
+
+.barcode-zoom {
+  display: grid;
+  flex: 1 1 150px;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.barcode-zoom input {
+  width: 100%;
+  min-height: 36px;
+  padding: 0;
 }
 
 .barcode-scanner-actions .button {
@@ -2069,8 +2095,7 @@ td small {
   }
 
   .barcode-video-frame {
-    min-height: 330px;
-    aspect-ratio: 16 / 9;
+    min-height: 0;
   }
 
   .barcode-scanner-actions {

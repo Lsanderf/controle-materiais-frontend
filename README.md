@@ -20,6 +20,10 @@ npm run dev
 
 No Windows com política de execução restrita, use `npm.cmd` no lugar de `npm`.
 
+Para diagnosticar a leitura de CODE-128 no celular, veja o
+[guia do scanner de NF-e](docs/nfe-barcode-scanner.md), com teste de imagem conhecida,
+logs de resolução/foco e passos para iPhone/Safari e Android/Chrome.
+
 Testes, build e lint:
 
 ```bash

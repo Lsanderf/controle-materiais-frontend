@@ -139,8 +139,11 @@ test('scanner restringe leitura a CODE-128 e pode trocar câmeras', () => {
     'utf8',
   );
 
-  assert.match(source, /reader\.possibleFormats = \[BarcodeFormat\.CODE_128\]/);
-  assert.match(source, /BrowserCodeReader\.listVideoInputDevices\(\)/);
+  const decoder = readFileSync(new URL('../src/utils/nfeBarcodeReader.js', import.meta.url), 'utf8');
+  const camera = readFileSync(new URL('../src/utils/nfeCamera.js', import.meta.url), 'utf8');
+  assert.match(decoder, /DecodeHintType\.POSSIBLE_FORMATS, \[BarcodeFormat\.CODE_128\]/);
+  assert.match(camera, /mediaDevices\.enumerateDevices\(\)/);
+  assert.match(source, /createNfeBarcodeReader\(video, guideRef\.current\)/);
   assert.match(source, /Trocar câmera/);
 });
 
