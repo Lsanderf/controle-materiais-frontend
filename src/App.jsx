@@ -40,6 +40,7 @@ export default function App() {
           <Route path="/mais" element={<MorePage />} />
 
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
+            <Route path="/materiais/novo" element={<MaterialFormPage />} />
             <Route
               path="/movimentacoes/retirada"
               element={<MovementFormPage key="RETIRADA" type="RETIRADA" />}
@@ -56,7 +57,6 @@ export default function App() {
           </Route>
 
           <Route element={<ProtectedRoute roles={['ADMIN']} />}>
-            <Route path="/materiais/novo" element={<MaterialFormPage />} />
             <Route
               path="/materiais/:id/editar"
               element={<MaterialFormPage />}

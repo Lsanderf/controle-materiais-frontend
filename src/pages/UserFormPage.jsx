@@ -9,7 +9,7 @@ const roles = ['ADMIN', 'OPERADOR', 'CONSULTA'];
 
 const roleDescriptions = {
   ADMIN: 'Gerencia cadastros, usuários e movimentações.',
-  OPERADOR: 'Consulta e registra movimentações.',
+  OPERADOR: 'Consulta, cria materiais e registra movimentações.',
   CONSULTA: 'Apenas consulta dados e histórico.',
 };
 

@@ -11,7 +11,7 @@ import { useResource } from '../hooks/useResource';
 import { materialService } from '../services/materialService';
 
 export default function MaterialsPage() {
-  const { role } = useAuth();
+  const { role, hasAnyRole } = useAuth();
   const location = useLocation();
   const [search, setSearch] = useState('');
   const loader = useCallback(() => materialService.list(), []);
@@ -35,7 +35,7 @@ export default function MaterialsPage() {
           <h1>Materiais</h1>
           <p>Consulte o saldo atual e mantenha os itens organizados.</p>
         </div>
-        {role === 'ADMIN' && (
+        {hasAnyRole('ADMIN', 'OPERADOR') && (
           <Link className="button button-primary" to="/materiais/novo">
             + Novo material
           </Link>

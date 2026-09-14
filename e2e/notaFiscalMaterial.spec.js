@@ -294,17 +294,74 @@ test('edição de rascunho preserva alterações ao criar material e salva com P
   ]);
 });
 
-test('OPERADOR mantém NF manual e XML sem ganhar permissão de criar material', async ({ page }) => {
+for (const mode of ['manual', 'XML']) {
+  test(`OPERADOR cria material na NF ${mode} e salva a associação`, async ({ page }) => {
+    const api = await setup(page, { role: 'OPERADOR', materials: [] });
+    await page.goto('/notas-fiscais/nova');
+    await expect(page.getByText('Nenhum material cadastrado. Use', { exact: false })).toBeVisible();
+    if (mode === 'XML') {
+      await importXml(page);
+    } else {
+      await fillInvoice(page);
+    }
+    await createMaterial(page, 0, 'Material do operador');
+    await expect(rows(page).first().getByRole('combobox')).toHaveValue('100');
+    await expect(rows(page).first()).toContainText('Estoque atual: 0 un.');
+    if (mode === 'XML') {
+      await rows(page).nth(1).getByRole('combobox').selectOption('100');
+    }
+    await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
+    await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
+    expect(materialPosts(api)).toHaveLength(1);
+    expect(materialPosts(api)[0].body).toEqual({
+      nome: 'Material do operador', descricao: 'Material cadastrado pela NF',
+    });
+    expect(api.draft.itens[0]).toMatchObject({ materialId: 100, quantidade: mode === 'XML' ? 120 : 12 });
+    expect(api.materials[0].quantidadeEstoque).toBe(0);
+    expect(writes(api).map(({ path, method }) => ({ path, method }))).toEqual([
+      ...(mode === 'XML' ? [{ path: '/notas-fiscais/importar-xml', method: 'POST' }] : []),
+      { path: '/materiais', method: 'POST' },
+      { path: '/notas-fiscais', method: 'POST' },
+    ]);
+  });
+}
+
+test('OPERADOR pode cadastrar pela lista de materiais, mas não editar nem o próprio cadastro', async ({ page }) => {
   const api = await setup(page, { role: 'OPERADOR' });
-  await page.goto('/notas-fiscais/nova');
-  await expect(rows(page)).toHaveCount(1);
-  await expect(page.getByRole('button', { name: '+ Criar material', exact: true })).toHaveCount(0);
-  await importXml(page);
-  await expect(page.getByRole('button', { name: '+ Criar material', exact: true })).toHaveCount(0);
-  for (const row of await rows(page).all()) await row.getByRole('combobox').selectOption('7');
-  await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
-  await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
-  expect(materialPosts(api)).toEqual([]);
+  await page.goto('/materiais');
+  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
+  await page.getByRole('link', { name: '+ Novo material', exact: true }).click();
+  await expect(page).toHaveURL(/\/materiais\/novo$/);
+  await page.getByLabel('Nome', { exact: true }).fill('Material novo do operador');
+  await page.getByLabel('Descrição', { exact: true }).fill('Descrição do novo material');
+  await page.getByRole('button', { name: 'Cadastrar material' }).click();
+  await expect(page).toHaveURL(/\/materiais$/);
+  await expect(page.getByText('Material cadastrado com sucesso.', { exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
+  expect(materialPosts(api)).toHaveLength(1);
+  expect(api.materials.at(-1)).toMatchObject({ nome: 'Material novo do operador', quantidadeEstoque: 0 });
+  for (const id of [7, 101]) {
+    await page.goto(`/materiais/${id}/editar`);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
+  }
+  expect(writes(api)).toEqual(materialPosts(api));
+  expect(api.materials[0]).toEqual(EXISTING_MATERIAL);
+});
+
+test('CONSULTA pode listar materiais, mas não cadastrar ou editar', async ({ page }) => {
+  const api = await setup(page, { role: 'CONSULTA' });
+  await page.goto('/materiais');
+  await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: '+ Novo material', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
+  for (const path of ['/materiais/novo', '/materiais/7/editar']) {
+    await page.goto(path);
+    await expect(page).toHaveURL(/\/dashboard$/);
+    await expect(page.getByRole('button', { name: 'Cadastrar material' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
+  }
+  expect(writes(api)).toEqual([]);
 });
 
 test('CONSULTA continua sem acesso a cadastro ou edição de NF', async ({ page }) => {

@@ -1,6 +1,6 @@
 # Criar material durante o cadastro da nota fiscal
 
-O botão **+ Criar material** aparece junto ao seletor de cada item para ADMIN,
+O botão **+ Criar material** aparece junto ao seletor de cada item para ADMIN e OPERADOR,
 inclusive quando não existem materiais cadastrados. O cadastro abre em um modal
 no desktop e ocupa a tela em dispositivos pequenos. Nome e descrição podem ser
 revisados antes de salvar.
@@ -55,10 +55,16 @@ A confirmação explícita da NF realiza a entrada pelo fluxo já existente.
 Não houve alteração de endpoint, DTO, regra de negócio, autenticação, migration
 ou confirmação automática.
 
-O backend permite cadastrar material apenas para ADMIN. O novo botão segue
-essa regra; OPERADOR mantém o cadastro de NF e a seleção de materiais existentes.
-CONSULTA continua sem acesso às rotas de cadastro e edição da NF. Duplicidades
-seguem a validação atual do backend, cuja mensagem permanece visível no modal.
+O backend permite `POST /materiais` para ADMIN e OPERADOR. Essa regra específica
+vem antes da restrição geral de escrita em `/materiais` e `/materiais/**`, que
+continua exclusiva do ADMIN. OPERADOR pode criar pela página de materiais e pelo
+modal da NF, mas não pode editar, inativar, excluir ou alterar materiais existentes,
+inclusive os que acabou de cadastrar. A rota de edição e os botões de edição
+continuam exclusivos do ADMIN.
+
+CONSULTA pode consultar materiais, mas não criar ou editar; também continua sem
+acesso às rotas de cadastro e edição da NF. Duplicidades seguem a validação atual
+do backend, cuja mensagem permanece visível no modal.
 
 ## Arquivos desta implementação
 
@@ -79,8 +85,10 @@ Arquivos alterados no frontend:
 - `package-lock.json`
 - `.gitignore`
 
-Arquivo alterado no backend, somente para adicionar um teste:
+Arquivos alterados no backend para autorizar a criação e testar as permissões:
 
+- `Projeto1/src/main/java/com/Lucca/Projeto1/config/SecurityConfig.java`
+- `Projeto1/src/test/java/com/Lucca/Projeto1/ApiIntegrationTests.java`
 - `Projeto1/src/test/java/com/Lucca/Projeto1/NotaFiscalEntradaIntegrationTests.java`
 
 As alterações de XML e leitura de código de barras que já existiam na área de
@@ -88,15 +96,15 @@ trabalho foram preservadas e não estão listadas como trabalho desta implementa
 
 ## Validação automatizada
 
-Validação em 11/09/2026:
+Validação da regra de permissões em 14/09/2026:
 
 | Verificação | Resultado |
 | --- | --- |
-| `npm test` | 57 testes aprovados |
+| `npm test` | 103 testes aprovados |
 | `npm run lint` | Aprovado |
 | `npm run build` | Aprovado |
-| `npm run test:e2e`, usando Chrome instalado | 26 testes aprovados: 13 cenários em desktop e mobile |
-| Maven `test` | 86 testes aprovados, sem falhas, erros ou testes ignorados |
+| `npm run test:e2e -- e2e/notaFiscalMaterial.spec.js`, usando Chrome instalado | 32 testes aprovados: 16 cenários em desktop e mobile |
+| Maven `test`, com `-Dtest=ApiIntegrationTests,NotaFiscalEntradaIntegrationTests` | 60 testes aprovados, sem falhas, erros ou testes ignorados |
 
 Os testes de navegador usam a aplicação real com respostas HTTP simuladas e
 conferem os payloads e a autenticação enviados. Cobrem preservação do nó DOM e
@@ -106,12 +114,13 @@ quantidades no payload do material, duplicidade, nova tentativa, bloqueio durant
 envio, permissões, edição de NF, cadastro manual, importação e o formulário normal
 de materiais. Também exercitam foco e botões numa área de 390 × 360 pixels.
 
-O novo teste Java usa os endpoints reais com autenticação e banco H2: cria o
+O teste Java usa os endpoints reais com autenticação e banco H2, para ADMIN e OPERADOR: cria o
 material, verifica estoque zero e ausência de movimentos, salva NF com 120
 unidades, verifica novamente zero, confirma e verifica estoque 120 com uma única
 ENTRADA. Uma segunda confirmação é recusada sem alterar estoque ou movimentos.
-Os testes existentes de XML, permissões, duplicidade e proteção do estoque
-também passam.
+Os testes de API também verificam consulta pelos três perfis, criação negada
+para CONSULTA, bloqueio de alteração para OPERADOR e CONSULTA, duplicidade e
+proteção do estoque.
 
 Para reproduzir os testes de interface com o Chromium do Playwright:
 
@@ -167,8 +176,11 @@ Execute em ambiente de desenvolvimento com backend e frontend iniciados.
 9. Em base sem materiais, abra a NF, adicione um item e crie o primeiro material
    pelo botão. Confira que a lista vazia não impede mostrar o item ou o cadastro.
 10. Entre como OPERADOR: a NF manual e a importação devem continuar disponíveis,
-    com seleção de materiais existentes e sem **+ Criar material**. Entre como
-    CONSULTA: confira que não há acesso às rotas de cadastro/edição de NF.
+    com seleção de materiais existentes e **+ Criar material**. Crie um material
+    em cada fluxo e confira a associação ao item. Na lista de materiais, confira
+    **+ Novo material**, a ausência de edição e o bloqueio da URL de edição,
+    inclusive para o material recém-criado. Entre como CONSULTA: confira que não
+    há acesso às rotas de cadastro/edição de materiais e NF nem botões de criação.
 11. Repita criação, cancelamento e erro em celular real. Abra o teclado, role os
     campos e confira que **Cadastrar material** e **Cancelar** ficam acessíveis.
     No desktop, percorra o modal com Tab/Shift+Tab e confira o retorno do foco.

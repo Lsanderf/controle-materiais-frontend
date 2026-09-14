@@ -45,7 +45,7 @@ function identifyItems(form) {
 export default function NotaFiscalFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { role } = useAuth();
+  const { role, hasAnyRole } = useAuth();
   const editing = Boolean(id);
   const [form, setForm] = useState(() => identifyItems(emptyNotaFiscalForm()));
   const [materials, setMaterials] = useState([]);
@@ -58,7 +58,7 @@ export default function NotaFiscalFormPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [materialCreationItem, setMaterialCreationItem] = useState(null);
   const xmlInputRef = useRef(null);
-  const canCreateMaterial = role === 'ADMIN';
+  const canCreateMaterial = hasAnyRole('ADMIN', 'OPERADOR');
 
   useEffect(() => {
     let active = true;
