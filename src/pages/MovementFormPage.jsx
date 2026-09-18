@@ -44,6 +44,8 @@ export default function MovementFormPage({ type }) {
   const submittingRef = useRef(false);
   const [employeeMovements, setEmployeeMovements] = useState([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
+  const [balanceError, setBalanceError] = useState(null);
+  const [balanceReload, setBalanceReload] = useState(0);
 
   const loader = useCallback(
     () =>
@@ -79,18 +81,24 @@ export default function MovementFormPage({ type }) {
   useEffect(() => {
     if (type !== 'DEVOLUCAO' || !form.funcionarioId) {
       setEmployeeMovements([]);
+      setBalanceLoading(false);
+      setBalanceError(null);
       return;
     }
 
     let active = true;
     setBalanceLoading(true);
+    setBalanceError(null);
     movimentacaoService
       .byFuncionario(form.funcionarioId)
       .then((movements) => {
         if (active) setEmployeeMovements(movements);
       })
-      .catch(() => {
-        if (active) setEmployeeMovements([]);
+      .catch((requestError) => {
+        if (active) {
+          setEmployeeMovements([]);
+          setBalanceError(requestError);
+        }
       })
       .finally(() => {
         if (active) setBalanceLoading(false);
@@ -99,10 +107,10 @@ export default function MovementFormPage({ type }) {
     return () => {
       active = false;
     };
-  }, [form.funcionarioId, type]);
+  }, [form.funcionarioId, type, balanceReload]);
 
   const returnBalance = useMemo(() => {
-    if (type !== 'DEVOLUCAO' || !selectedMaterial || !selectedContract) return null;
+    if (type !== 'DEVOLUCAO' || !selectedMaterial || !selectedContract || balanceLoading || balanceError) return null;
     return employeeMovements
       .filter(
         (movement) =>
@@ -114,7 +122,7 @@ export default function MovementFormPage({ type }) {
         if (movement.tipo === 'DEVOLUCAO') return balance - movement.quantidade;
         return balance;
       }, 0);
-  }, [employeeMovements, selectedContract, selectedMaterial, type]);
+  }, [employeeMovements, selectedContract, selectedMaterial, type, balanceLoading, balanceError]);
 
   const clientError = useMemo(() => {
     if (!form.funcionarioId) return 'Selecione um funcionario ativo.';
@@ -158,7 +166,7 @@ export default function MovementFormPage({ type }) {
 
   function prepareConfirmation(event) {
     event.preventDefault();
-    if (!canRegister || submittingRef.current) return;
+    if (!canRegister || submittingRef.current || balanceLoading || balanceError) return;
     setError(null);
     if (clientError) {
       setError(new Error(clientError));
@@ -168,7 +176,7 @@ export default function MovementFormPage({ type }) {
   }
 
   async function confirmMovement(signature) {
-    if (!canRegister || submittingRef.current) return;
+    if (!canRegister || submittingRef.current || balanceLoading || balanceError) return;
     if (clientError) {
       setError(new Error(clientError));
       return;
@@ -361,10 +369,20 @@ export default function MovementFormPage({ type }) {
               <div className="balance-info">
                 <span>Quantidade ainda retirada neste vinculo</span>
                 <strong>
-                  {balanceLoading ? 'Calculando...' : `${Math.max(returnBalance, 0)} un.`}
+                  {balanceLoading ? 'Calculando...' : balanceError ? 'Saldo indisponível' : `${Math.max(returnBalance, 0)} un.`}
                 </strong>
               </div>
             )}
+
+          {balanceError && (
+            <div>
+              <ErrorMessage error={balanceError} />
+              <button className="button button-secondary" type="button"
+                disabled={balanceLoading} onClick={() => setBalanceReload((version) => version + 1)}>
+                Tentar carregar saldo novamente
+              </button>
+            </div>
+          )}
 
           <div className="form-actions">
             <Link className="button button-secondary" to="/movimentacoes">
@@ -373,7 +391,7 @@ export default function MovementFormPage({ type }) {
             <button
               className="button button-primary"
               type="submit"
-              disabled={Boolean(clientError) || balanceLoading}
+              disabled={Boolean(clientError) || balanceLoading || Boolean(balanceError)}
             >
               Continuar
             </button>

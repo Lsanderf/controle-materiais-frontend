@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { failureModes, prepareFailure } from './support/apiFailures.js';
 
 const PHOTO = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aN2kAAAAASUVORK5CYII=', 'base64');
 const EMPLOYEE = { id: 1, nome: 'João Silva', cargo: 'Técnico', ativo: true };
@@ -18,6 +19,7 @@ async function setup(page, role = 'OPERADOR') {
     if (path === '/materiais') return route.fulfill({ json: [{ ...MATERIAL, quantidadeEstoque: api.stock }] });
     if (path === '/funcionarios') return route.fulfill({ json: [EMPLOYEE] });
     if (path === '/contratos') return route.fulfill({ json: [CONTRACT] });
+    if (path === '/movimentacoes/funcionario/1' && api.balanceFailure) return api.balanceFailure(route);
     if (path === '/movimentacoes/funcionario/1') return route.fulfill({ json: [
       { tipo: 'RETIRADA', material: MATERIAL.nome, contrato: CONTRACT.nome, quantidade: 6 },
     ] });
@@ -29,6 +31,7 @@ async function setup(page, role = 'OPERADOR') {
       const signature = parts.get('assinatura');
       const photo = parts.get('foto');
       api.posts.push({ movement, signature, photo, authorization: request.headers().authorization });
+      if (api.failure) return api.failure(route);
       if (api.gate) await api.gate;
       if (api.error) return route.fulfill({ status: 409, json: { erro: api.error } });
       api.stock += movement.tipo === 'RETIRADA' ? -movement.quantidade : movement.quantidade;
@@ -187,6 +190,72 @@ test('erro do backend preserva assinatura, foto e dados e permite nova tentativa
   await expect(dialog).toHaveCount(0);
   expect(api.posts[1].movement).toEqual(api.posts[0].movement);
   expect(Buffer.from(await api.posts[1].signature.arrayBuffer())).toEqual(Buffer.from(await api.posts[0].signature.arrayBuffer()));
+});
+
+for (const type of ['RETIRADA', 'DEVOLUCAO']) {
+  for (const mode of failureModes) {
+    test(`${type}: ${mode} preserva formulário e evidências e permite reenviar`, async ({ page }) => {
+      const failure = await prepareFailure(page, mode);
+      const api = await setup(page);
+      api.failure = failure.respond;
+      try {
+        await fill(page, type);
+        if (type === 'DEVOLUCAO') await selectPhoto(page);
+        await draw(page);
+        const dialog = signatureDialog(page);
+        const confirm = dialog.getByRole('button', {
+          name: type === 'RETIRADA' ? 'Confirmar retirada' : 'Confirmar devolução', exact: true,
+        });
+        const before = await page.locator('.form-card').evaluate((form) =>
+          [...form.querySelectorAll('input, select, textarea')].map((field) => field.value));
+        await confirm.click();
+        await expect.poll(() => api.posts.length).toBe(1);
+        await failure.expectError(dialog.getByRole('alert'));
+        await expect(confirm).toBeEnabled();
+        await expect(dialog.getByRole('button', { name: 'Cancelar', exact: true })).toBeEnabled();
+        await expect(dialog.getByText('Registrando movimentação...', { exact: true })).toHaveCount(0);
+        expect(await page.locator('.form-card').evaluate((form) =>
+          [...form.querySelectorAll('input, select, textarea')].map((field) => field.value))).toEqual(before);
+        if (type === 'DEVOLUCAO') await expect(dialog.getByRole('img', { name: 'Prévia da foto do material devolvido' })).toBeVisible();
+        expect(api.stock).toBe(10);
+        expect(api.posts).toHaveLength(1);
+        failure.release();
+        api.failure = null;
+        await confirm.click();
+        await expect(dialog).toHaveCount(0);
+        await expect(page.getByRole('dialog', { name: 'Comprovante de movimentação' })).toBeVisible();
+        expect(api.posts).toHaveLength(2);
+        expect(api.posts[1].movement).toEqual(api.posts[0].movement);
+        expect(Buffer.from(await api.posts[1].signature.arrayBuffer())).toEqual(Buffer.from(await api.posts[0].signature.arrayBuffer()));
+        if (type === 'DEVOLUCAO') {
+          expect(Buffer.from(await api.posts[1].photo.arrayBuffer())).toEqual(PHOTO);
+        }
+      } finally { failure.release(); }
+    });
+  }
+}
+
+test('falha na consulta do saldo da devolução permite recarregar sem perder os dados', async ({ page }) => {
+  const failure = await prepareFailure(page, 'network');
+  const api = await setup(page);
+  api.balanceFailure = failure.respond;
+  await page.goto('/movimentacoes/devolucao');
+  await page.getByRole('combobox', { name: 'Funcionario', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: /^Material/ }).selectOption('1');
+  await page.getByLabel(/^Quantidade/).fill('3');
+  await page.getByLabel(/^Observacao/).fill('Devolução preservada');
+  await failure.expectError(page.getByRole('alert'));
+  await expect(page.getByText('Calculando...', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('Saldo indisponível', { exact: true })).toBeVisible();
+  api.balanceFailure = null;
+  await page.getByRole('button', { name: 'Tentar carregar saldo novamente' }).click();
+  await expect(page.getByRole('button', { name: 'Continuar', exact: true })).toBeEnabled();
+  await expect(page.getByLabel(/^Quantidade/)).toHaveValue('3');
+  await expect(page.getByLabel(/^Observacao/)).toHaveValue('Devolução preservada');
+  await page.getByRole('button', { name: 'Continuar', exact: true }).click();
+  await expect(signatureDialog(page)).toBeVisible();
+  expect(api.posts).toHaveLength(0);
 });
 
 test('limpar assinatura bloqueia a conclusão novamente', async ({ page }) => {

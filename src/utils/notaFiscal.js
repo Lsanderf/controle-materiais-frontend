@@ -75,7 +75,9 @@ export function buildNotaFiscalPayload(form) {
     itens: (form.itens ?? []).map((item) => ({
       materialId: Number(item.materialId),
       quantidade: Number(item.quantidade),
-      valorUnitario: normalizeMoneyInput(item.valorUnitario),
+      valorUnitario: Number(
+          String(item.valorUnitario).replace(',', '.')
+      ),
     })),
   };
 }

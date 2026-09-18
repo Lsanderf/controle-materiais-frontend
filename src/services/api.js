@@ -1,3 +1,7 @@
+import { createApiClient } from './apiClient.js';
+
+export { ApiError } from './apiErrors.js';
+
 const configuredApiUrl = import.meta.env.VITE_API_URL;
 
 if (!configuredApiUrl) {
@@ -6,16 +10,6 @@ if (!configuredApiUrl) {
 
 export const API_URL = configuredApiUrl.replace(/\/+$/, '');
 export const AUTH_STORAGE_KEY = 'controle-materiais-auth';
-
-export class ApiError extends Error {
-  constructor(message, status, details = {}) {
-    super(message);
-    this.name = 'ApiError';
-    this.status = status;
-    this.fields = details.campos ?? {};
-    this.details = details;
-  }
-}
 
 export function readStoredAuth() {
   try {
@@ -35,104 +29,11 @@ export function readStoredAuth() {
   }
 }
 
-async function readResponse(response) {
-  const text = await response.text();
-  if (!text) return null;
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
-}
-
-function errorMessage(body, status) {
-  if (typeof body === 'string' && body.trim()) return body;
-  if (body?.erro) return body.erro;
-  if (body?.message) return body.message;
-  if (status === 401) return 'Sua sessão é inválida ou expirou. Entre novamente.';
-  if (status === 403) return 'Você não tem permissão para realizar esta ação.';
-  return 'Não foi possível concluir a solicitação.';
-}
-
-export async function apiRequest(path, options = {}) {
-  const { auth = true, body, headers, ...fetchOptions } = options;
-  const requestHeaders = new Headers(headers);
-  const storedAuth = readStoredAuth();
-
-  if (body !== undefined && !(body instanceof FormData)) {
-    requestHeaders.set('Content-Type', 'application/json');
-  }
-
-  if (auth && storedAuth?.token) {
-    requestHeaders.set('Authorization', `Bearer ${storedAuth.token}`);
-  }
-
-  let response;
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      ...fetchOptions,
-      headers: requestHeaders,
-      body:
-        body === undefined || body instanceof FormData
-          ? body
-          : JSON.stringify(body),
-    });
-  } catch {
-    throw new ApiError(
-      'Não foi possível conectar ao servidor. Verifique se o back-end está em execução.',
-      0,
-    );
-  }
-
-  const responseBody = await readResponse(response);
-
-  if (!response.ok) {
-    if (auth && response.status === 401) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      window.dispatchEvent(new Event('auth:unauthorized'));
-    }
-
-    throw new ApiError(
-      errorMessage(responseBody, response.status),
-      response.status,
-      responseBody && typeof responseBody === 'object' ? responseBody : {},
-    );
-  }
-
-  return responseBody;
-}
-
-export async function apiBlobRequest(path) {
-  const storedAuth = readStoredAuth();
-  const headers = new Headers();
-
-  if (storedAuth?.token) {
-    headers.set('Authorization', `Bearer ${storedAuth.token}`);
-  }
-
-  let response;
-  try {
-    response = await fetch(`${API_URL}${path}`, { headers });
-  } catch {
-    throw new ApiError(
-      'Não foi possível conectar ao servidor. Verifique se o back-end está em execução.',
-      0,
-    );
-  }
-
-  if (!response.ok) {
-    const responseBody = await readResponse(response);
-    if (response.status === 401) {
-      localStorage.removeItem(AUTH_STORAGE_KEY);
-      window.dispatchEvent(new Event('auth:unauthorized'));
-    }
-    throw new ApiError(
-      errorMessage(responseBody, response.status),
-      response.status,
-      responseBody && typeof responseBody === 'object' ? responseBody : {},
-    );
-  }
-
-  return response.blob();
-}
+export const { apiRequest, apiBlobRequest } = createApiClient({
+  baseUrl: API_URL,
+  readAuth: readStoredAuth,
+  onUnauthorized: () => {
+    localStorage.removeItem(AUTH_STORAGE_KEY);
+    window.dispatchEvent(new Event('auth:unauthorized'));
+  },
+});

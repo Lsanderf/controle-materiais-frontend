@@ -1,3 +1,5 @@
+import { safeErrorFields, safeErrorText } from '../services/apiErrors.js';
+
 export function Loading({ label = 'Carregando...' }) {
   return (
     <div className="state-box" role="status">
@@ -9,11 +11,11 @@ export function Loading({ label = 'Carregando...' }) {
 
 export function ErrorMessage({ error }) {
   if (!error) return null;
-  const fields = error.fields ? Object.values(error.fields) : [];
+  const fields = Object.values(safeErrorFields(error.fields));
 
   return (
     <div className="alert alert-error" role="alert">
-      <strong>{error.message ?? String(error)}</strong>
+      <strong>{safeErrorText(typeof error === 'string' ? error : error.message)}</strong>
       {fields.length > 0 && (
         <ul>
           {fields.map((message) => (

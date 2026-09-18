@@ -547,18 +547,29 @@ export default function NotaFiscalFormPage() {
                     </label>
 
                     <label className="field">
-                      <span>Valor unitario</span>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        inputMode="decimal"
-                        value={item.valorUnitario}
-                        onChange={(event) =>
-                          changeItem(index, 'valorUnitario', event.target.value)
-                        }
-                        required
-                      />
+                      <span>Valor unitário</span>
+
+                      <div className="money-input">
+                        <span>R$</span>
+
+                        <input
+                            type="text"
+                            inputMode="decimal"
+                            placeholder="0,00"
+                            value={item.valorUnitario}
+                            onChange={(event) => {
+                              let valor = event.target.value;
+
+                              // Permite apenas números, vírgula e ponto
+                              valor = valor.replace(/[^\d,.]/g, '');
+
+                              changeItem(index, 'valorUnitario', valor);
+                            }}
+                            required
+                        />
+                      </div>
+
+                      <small>Ex.: 48,90</small>
                     </label>
 
                     <button
