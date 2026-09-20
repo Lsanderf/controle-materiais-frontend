@@ -12,6 +12,12 @@ export const movimentacaoService = {
       method: 'POST',
       body: createSignatureFormData(signature),
     }),
+  estornar: (id, justificativa, idempotencyKey) =>
+    apiRequest(`/movimentacoes/${id}/estorno`, {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: { justificativa },
+    }),
   byFuncionario: (id) => apiRequest(`/movimentacoes/funcionario/${id}`),
   byContrato: (id) => apiRequest(`/movimentacoes/contrato/${id}`),
   byMaterial: (id) => apiRequest(`/movimentacoes/material/${id}`),

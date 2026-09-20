@@ -214,6 +214,7 @@ function NotaFiscalEvidence({ notaFiscal, onNavigate }) {
 }
 
 function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
+  const isReversal = ['ESTORNO_RETIRADA', 'ESTORNO_DEVOLUCAO'].includes(receipt.tipo);
   const signature = receipt.evidencias?.find(
     (evidence) => evidence.tipo === 'ASSINATURA',
   );
@@ -231,6 +232,12 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
             <dt>Identificador</dt>
             <dd>#{receipt.id}</dd>
           </div>
+          {receipt.movimentacaoOrigemId && (
+            <div>
+              <dt>Movimentação original</dt>
+              <dd>#{receipt.movimentacaoOrigemId}</dd>
+            </div>
+          )}
           <div>
             <dt>Quantidade</dt>
             <dd>{receipt.quantidade} un.</dd>
@@ -252,7 +259,7 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
           </div>
           {receipt.observacao && (
             <div className="receipt-grid-wide">
-              <dt>Observação</dt>
+              <dt>{isReversal ? 'Justificativa do estorno' : 'Observação'}</dt>
               <dd>{receipt.observacao}</dd>
             </div>
           )}
@@ -302,9 +309,15 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
           <EvidencePreview key={`${signature.id}:${signature.urlArquivo}`} evidence={signature} />
         ) : !receipt.notaFiscal ? (
           <div className="receipt-evidence-empty">
-            <strong>Registro histórico sem assinatura</strong>
+            <strong>
+              {isReversal
+                ? 'Correção administrativa sem assinatura'
+                : 'Registro histórico sem assinatura'}
+            </strong>
             <span>
-              A movimentação permanece comprovada pelos dados imutáveis acima.
+              {isReversal
+                ? 'O estorno permanece comprovado pelos dados imutáveis e pela referência à movimentação original.'
+                : 'A movimentação permanece comprovada pelos dados imutáveis acima.'}
             </span>
             {mayAddSignature && (
               <button

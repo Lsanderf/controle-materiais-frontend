@@ -58,6 +58,8 @@ export function MovementBadge({ type }) {
     ENTRADA: 'Entrada',
     RETIRADA: 'Retirada',
     DEVOLUCAO: 'Devolução',
+    ESTORNO_RETIRADA: 'Estorno de retirada',
+    ESTORNO_DEVOLUCAO: 'Estorno de devolução',
   };
   return (
     <span className={`badge badge-${type?.toLowerCase()}`}>

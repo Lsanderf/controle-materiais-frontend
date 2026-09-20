@@ -550,35 +550,38 @@ export default function NotaFiscalFormPage() {
                       <span>Valor unitário</span>
 
                       <div className="money-input">
-                        <span>R$</span>
+                        <span className="money-input-prefix">R$</span>
 
                         <input
-                            type="text"
-                            inputMode="decimal"
-                            placeholder="0,00"
-                            value={item.valorUnitario}
-                            onChange={(event) => {
-                              let valor = event.target.value;
+                          type="text"
+                          inputMode="decimal"
+                          placeholder="0,00"
+                          value={item.valorUnitario}
+                          onChange={(event) => {
+                            let valor = event.target.value;
 
-                              // Permite apenas números, vírgula e ponto
-                              valor = valor.replace(/[^\d,.]/g, '');
+                            // Permite apenas números, vírgula e ponto
+                            valor = valor.replace(/[^\d,.]/g, '');
 
-                              changeItem(index, 'valorUnitario', valor);
-                            }}
-                            required
+                            changeItem(index, 'valorUnitario', valor);
+                          }}
+                          required
                         />
                       </div>
 
                       <small>Ex.: 48,90</small>
                     </label>
 
-                    <button
-                      className="text-button danger"
-                      type="button"
-                      onClick={() => removeItem(index)}
-                    >
-                      Remover
-                    </button>
+                    <div className="field invoice-item-action">
+                      <span>Remover</span>
+                      <button
+                        className="text-button danger"
+                        type="button"
+                        onClick={() => removeItem(index)}
+                      >
+                        Remover
+                      </button>
+                    </div>
                   </div>
                 );
               })}

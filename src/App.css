@@ -384,6 +384,12 @@
   background: var(--orange-soft);
 }
 
+.badge-estorno_retirada,
+.badge-estorno_devolucao {
+  color: #5b3a8f;
+  background: #f0eafe;
+}
+
 .badge-rascunho {
   color: #174b9d;
   background: var(--primary-soft);
@@ -818,6 +824,58 @@ td small {
   color: #29354a;
   font-size: 0.86rem;
   font-weight: 750;
+}
+
+.money-input {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  border: 1px solid #cfd7e4;
+  border-radius: 9px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.money-input:focus-within {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(23, 92, 211, 0.1);
+}
+
+.money-input-prefix {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  padding: 10px 12px;
+  border-right: 1px solid #cfd7e4;
+  color: #344158;
+  background: #f4f6f9;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.field .money-input input {
+  width: auto;
+  min-width: 0;
+  min-height: 44px;
+  flex: 1 1 auto;
+  border: 0;
+  border-radius: 0;
+}
+
+.field .money-input input:focus {
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.invoice-item-action > span {
+  display: none;
+}
+
+.invoice-item-action .text-button {
+  display: inline-flex;
+  min-height: 46px;
+  align-self: flex-start;
+  align-items: center;
 }
 
 .invoice-create-material {
@@ -1296,6 +1354,17 @@ td small {
 .history-details dd small {
   margin-top: 2px;
   font-weight: 500;
+}
+
+.history-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.dialog-content .field {
+  margin-top: 16px;
 }
 
 .dialog-backdrop {
@@ -2408,7 +2477,11 @@ td small {
 
   .invoice-item-row {
     grid-template-columns: minmax(230px, 1fr) minmax(120px, 0.35fr) minmax(150px, 0.45fr) auto;
-    align-items: end;
+    align-items: start;
+  }
+
+  .invoice-item-action > span {
+    display: block;
   }
 
   .invoice-summary-grid {

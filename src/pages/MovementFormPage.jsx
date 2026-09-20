@@ -16,6 +16,10 @@ import { funcionarioService } from '../services/funcionarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
+import {
+  calculateReturnBalance,
+  selectableMovementLinks,
+} from '../utils/movementForm';
 
 const descriptions = {
   RETIRADA: 'Registre a entrega de materiais para uso em um contrato.',
@@ -65,8 +69,8 @@ export default function MovementFormPage({ type }) {
   } = useResource(loader, [loader]);
 
   const [materials = [], allEmployees = [], allContracts = []] = data ?? [];
-  const employees = allEmployees.filter((employee) => employee.ativo);
-  const contracts = allContracts.filter((contract) => contract.ativo);
+  const employees = selectableMovementLinks(allEmployees, type);
+  const contracts = selectableMovementLinks(allContracts, type);
   const selectedMaterial = materials.find(
     (material) => String(material.id) === form.materialId,
   );
@@ -111,22 +115,22 @@ export default function MovementFormPage({ type }) {
 
   const returnBalance = useMemo(() => {
     if (type !== 'DEVOLUCAO' || !selectedMaterial || !selectedContract || balanceLoading || balanceError) return null;
-    return employeeMovements
-      .filter(
-        (movement) =>
-          movement.material === selectedMaterial.nome &&
-          movement.contrato === selectedContract.nome,
-      )
-      .reduce((balance, movement) => {
-        if (movement.tipo === 'RETIRADA') return balance + movement.quantidade;
-        if (movement.tipo === 'DEVOLUCAO') return balance - movement.quantidade;
-        return balance;
-      }, 0);
+    return calculateReturnBalance(
+      employeeMovements,
+      selectedMaterial.nome,
+      selectedContract.nome,
+    );
   }, [employeeMovements, selectedContract, selectedMaterial, type, balanceLoading, balanceError]);
 
   const clientError = useMemo(() => {
-    if (!form.funcionarioId) return 'Selecione um funcionario ativo.';
-    if (!form.contratoId) return 'Selecione um contrato ativo.';
+    if (!form.funcionarioId)
+      return type === 'RETIRADA'
+        ? 'Selecione um funcionario ativo.'
+        : 'Selecione um funcionario existente.';
+    if (!form.contratoId)
+      return type === 'RETIRADA'
+        ? 'Selecione um contrato ativo.'
+        : 'Selecione um contrato existente.';
     if (!form.materialId) return 'Selecione um material.';
     if (!Number.isInteger(quantity) || quantity <= 0)
       return 'A quantidade deve ser um numero inteiro maior que zero.';
@@ -275,8 +279,9 @@ export default function MovementFormPage({ type }) {
 
       {employees.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
-          Nao ha {employees.length === 0 ? 'funcionarios' : 'contratos'} ativos
-          disponiveis. Ative ou cadastre o recurso antes de continuar.
+          Nao ha {employees.length === 0 ? 'funcionarios' : 'contratos'}{' '}
+          {type === 'RETIRADA' ? 'ativos disponiveis' : 'cadastrados'}.
+          {' '}{type === 'RETIRADA' ? 'Ative ou cadastre' : 'Cadastre'} o recurso antes de continuar.
         </div>
       ) : (
         <form className="content-card form-card" onSubmit={prepareConfirmation}>
@@ -292,6 +297,7 @@ export default function MovementFormPage({ type }) {
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
                     {employee.nome} - {employee.cargo}
+                    {!employee.ativo ? ' (inativo)' : ''}
                   </option>
                 ))}
               </select>
@@ -307,7 +313,7 @@ export default function MovementFormPage({ type }) {
                 <option value="">Selecione</option>
                 {contracts.map((contract) => (
                   <option key={contract.id} value={contract.id}>
-                    {contract.nome}
+                    {contract.nome}{!contract.ativo ? ' (inativo)' : ''}
                   </option>
                 ))}
               </select>

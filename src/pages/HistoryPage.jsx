@@ -4,22 +4,38 @@ import {
   ErrorMessage,
   Loading,
   MovementBadge,
+  SuccessMessage,
 } from '../components/Feedback';
 import { useResource } from '../hooks/useResource';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { sortMovementsNewestFirst } from '../utils/formatters';
 import MovementReceiptModal from '../components/MovementReceiptModal';
+import ConfirmDialog from '../components/ConfirmDialog';
+import { useAuth } from '../context/useAuth';
+import {
+  canReverseMovement,
+  normalizeReversalJustification,
+} from '../utils/movementReversal';
 
 const filters = [
   { value: 'TODOS', label: 'Todos' },
   { value: 'ENTRADA', label: 'Entrada' },
   { value: 'RETIRADA', label: 'Retirada' },
   { value: 'DEVOLUCAO', label: 'Devolução' },
+  { value: 'ESTORNO_RETIRADA', label: 'Estorno de retirada' },
+  { value: 'ESTORNO_DEVOLUCAO', label: 'Estorno de devolução' },
 ];
 
 export default function HistoryPage() {
+  const { role } = useAuth();
   const [filter, setFilter] = useState('TODOS');
   const [selectedMovementId, setSelectedMovementId] = useState(null);
+  const [movementToReverse, setMovementToReverse] = useState(null);
+  const [justification, setJustification] = useState('');
+  const [reversalKey, setReversalKey] = useState('');
+  const [reversing, setReversing] = useState(false);
+  const [reversalError, setReversalError] = useState(null);
+  const [reversalFeedback, setReversalFeedback] = useState('');
   const loader = useCallback(() => movimentacaoService.list(), []);
   const {
     data: movements,
@@ -35,6 +51,58 @@ export default function HistoryPage() {
       : sorted.filter((movement) => movement.tipo === filter);
   }, [filter, movements]);
 
+  function canReverse(movement) {
+    return canReverseMovement(movement, role);
+  }
+
+  function openReversal(movement) {
+    setMovementToReverse(movement);
+    setJustification('');
+    setReversalError(null);
+    setReversalFeedback('');
+    setReversalKey(crypto.randomUUID());
+  }
+
+  function closeReversal() {
+    if (reversing) return;
+    setMovementToReverse(null);
+    setJustification('');
+    setReversalError(null);
+    setReversalKey('');
+  }
+
+  async function reverseMovement() {
+    if (reversing) return;
+    let normalizedJustification;
+    try {
+      normalizedJustification = normalizeReversalJustification(justification);
+    } catch (validationError) {
+      setReversalError(validationError);
+      return;
+    }
+
+    setReversing(true);
+    setReversalError(null);
+    try {
+      const reversed = await movimentacaoService.estornar(
+        movementToReverse.id,
+        normalizedJustification,
+        reversalKey,
+      );
+      setReversalFeedback(
+        `Movimentação #${movementToReverse.id} estornada no registro #${reversed.id}.`,
+      );
+      setMovementToReverse(null);
+      setJustification('');
+      setReversalKey('');
+      reload().catch(() => {});
+    } catch (requestError) {
+      setReversalError(requestError);
+    } finally {
+      setReversing(false);
+    }
+  }
+
   return (
     <div className="page-stack">
       <header className="page-heading">
@@ -47,6 +115,8 @@ export default function HistoryPage() {
           Atualizar
         </button>
       </header>
+
+      <SuccessMessage>{reversalFeedback}</SuccessMessage>
 
       <div className="filter-tabs" role="group" aria-label="Filtrar por tipo">
         {filters.map((item) => (
@@ -115,6 +185,24 @@ export default function HistoryPage() {
                       {movement.usuarioId && <small>ID {movement.usuarioId}</small>}
                     </dd>
                   </div>
+                  {movement.movimentacaoOrigemId && (
+                    <div>
+                      <dt>Movimentação original</dt>
+                      <dd>#{movement.movimentacaoOrigemId}</dd>
+                    </div>
+                  )}
+                  {movement.movimentacaoOrigemId && movement.observacao && (
+                    <div>
+                      <dt>Justificativa</dt>
+                      <dd>{movement.observacao}</dd>
+                    </div>
+                  )}
+                  {movement.estornada && (
+                    <div>
+                      <dt>Estornada por</dt>
+                      <dd>#{movement.estornoId}</dd>
+                    </div>
+                  )}
                 </dl>
                 <div className="resource-actions">
                   <button
@@ -124,6 +212,15 @@ export default function HistoryPage() {
                   >
                     Ver comprovante
                   </button>
+                  {canReverse(movement) && (
+                    <button
+                      className="text-button danger"
+                      type="button"
+                      onClick={() => openReversal(movement)}
+                    >
+                      Estornar movimentação
+                    </button>
+                  )}
                 </div>
               </article>
             ))}
@@ -149,9 +246,18 @@ export default function HistoryPage() {
                     <td>{movement.dataMovimentacao}</td>
                     <td>
                       <MovementBadge type={movement.tipo} />
+                      {movement.movimentacaoOrigemId && (
+                        <small>Origem #{movement.movimentacaoOrigemId}</small>
+                      )}
+                      {movement.estornada && (
+                        <small>Estornada por #{movement.estornoId}</small>
+                      )}
                     </td>
                     <td>
                       <strong>{movement.material}</strong>
+                      {movement.movimentacaoOrigemId && movement.observacao && (
+                        <small>Justificativa: {movement.observacao}</small>
+                      )}
                     </td>
                     <td className="number-cell">{movement.quantidade} un.</td>
                     <td>{movement.funcionario || '—'}</td>
@@ -167,13 +273,24 @@ export default function HistoryPage() {
                       )}
                     </td>
                     <td>
-                      <button
-                        className="text-button"
-                        type="button"
-                        onClick={() => setSelectedMovementId(movement.id)}
-                      >
-                        Ver comprovante
-                      </button>
+                      <div className="history-actions">
+                        <button
+                          className="text-button"
+                          type="button"
+                          onClick={() => setSelectedMovementId(movement.id)}
+                        >
+                          Ver comprovante
+                        </button>
+                        {canReverse(movement) && (
+                          <button
+                            className="text-button danger"
+                            type="button"
+                            onClick={() => openReversal(movement)}
+                          >
+                            Estornar movimentação
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -189,6 +306,40 @@ export default function HistoryPage() {
           onClose={() => setSelectedMovementId(null)}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(movementToReverse)}
+        title="Estornar movimentação"
+        confirmLabel="Confirmar estorno"
+        loading={reversing}
+        onConfirm={reverseMovement}
+        onCancel={closeReversal}
+      >
+        {movementToReverse && (
+          <>
+            <p>
+              Será criado um estorno total da movimentação #{movementToReverse.id}.
+              O registro original permanecerá intacto.
+            </p>
+            <label className="field" htmlFor="reversal-justification">
+              <span>Justificativa</span>
+              <textarea
+                id="reversal-justification"
+                value={justification}
+                maxLength={1000}
+                required
+                disabled={reversing}
+                placeholder="Descreva o erro que está sendo corrigido"
+                onChange={(event) => {
+                  setJustification(event.target.value);
+                  setReversalError(null);
+                }}
+              />
+            </label>
+            <ErrorMessage error={reversalError} />
+          </>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }

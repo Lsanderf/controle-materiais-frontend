@@ -118,8 +118,8 @@ export function validateNotaFiscalForm(form) {
     }
     if (item.valorUnitario === '') return `${label}: informe o valor unitario.`;
     const unitValue = Number(normalizeMoneyInput(item.valorUnitario));
-    if (!Number.isFinite(unitValue) || unitValue < 0) {
-      return `${label}: o valor unitario nao pode ser negativo.`;
+    if (!Number.isFinite(unitValue) || unitValue <= 0) {
+      return `${label}: o valor unitario deve ser maior que zero.`;
     }
     if (!/^\d+([,.]\d{1,2})?$/.test(String(item.valorUnitario).trim())) {
       return `${label}: o valor unitario deve possuir ate 2 casas decimais.`;
