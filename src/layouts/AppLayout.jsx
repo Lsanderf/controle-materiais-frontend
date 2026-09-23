@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { roleLabel } from '../utils/formatters';
+import { canAccessEncarregados } from '../utils/encarregados';
 import telminasIcon from '../assets/telminas-icon.png';
 
 const mainItems = [
@@ -35,7 +36,7 @@ export default function AppLayout() {
   const titles = {
     '/dashboard': 'Visão geral',
     '/materiais': 'Materiais',
-    '/funcionarios': 'Funcionários',
+    '/encarregados': 'Encarregados',
     '/contratos': 'Contratos',
     '/movimentacoes': 'Movimentações',
     '/movimentacoes/retirada': 'Registrar retirada',
@@ -89,13 +90,15 @@ export default function AppLayout() {
 
           <p className="nav-section">Cadastros</p>
 
-          <NavigationLink
-            item={{
-              to: '/funcionarios',
-              label: 'Funcionários',
-              icon: '♙',
-            }}
-          />
+          {canAccessEncarregados(role) && (
+            <NavigationLink
+              item={{
+                to: '/encarregados',
+                label: 'Encarregados',
+                icon: '♙',
+              }}
+            />
+          )}
 
           <NavigationLink
             item={{

@@ -5,8 +5,7 @@ import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import MaterialsPage from './pages/MaterialsPage';
 import MaterialFormPage from './pages/MaterialFormPage';
-import EmployeesPage from './pages/EmployeesPage';
-import EmployeeFormPage from './pages/EmployeeFormPage';
+import EncarregadosPage from './pages/EncarregadosPage';
 import ContractsPage from './pages/ContractsPage';
 import ContractFormPage from './pages/ContractFormPage';
 import MovementsPage from './pages/MovementsPage';
@@ -19,6 +18,7 @@ import UsersPage from './pages/UsersPage';
 import UserFormPage from './pages/UserFormPage';
 import MorePage from './pages/MorePage';
 import NotFoundPage from './pages/NotFoundPage';
+import { ENCARREGADOS_ACCESS_ROLES } from './utils/encarregados';
 import './App.css';
 
 export default function App() {
@@ -31,13 +31,16 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/materiais" element={<MaterialsPage />} />
-          <Route path="/funcionarios" element={<EmployeesPage />} />
           <Route path="/contratos" element={<ContractsPage />} />
           <Route path="/movimentacoes" element={<MovementsPage />} />
           <Route path="/movimentacoes/historico" element={<HistoryPage />} />
           <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
           <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
           <Route path="/mais" element={<MorePage />} />
+
+          <Route element={<ProtectedRoute roles={ENCARREGADOS_ACCESS_ROLES} />}>
+            <Route path="/encarregados" element={<EncarregadosPage />} />
+          </Route>
 
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
             <Route path="/materiais/novo" element={<MaterialFormPage />} />
@@ -60,11 +63,6 @@ export default function App() {
             <Route
               path="/materiais/:id/editar"
               element={<MaterialFormPage />}
-            />
-            <Route path="/funcionarios/novo" element={<EmployeeFormPage />} />
-            <Route
-              path="/funcionarios/:id/editar"
-              element={<EmployeeFormPage />}
             />
             <Route path="/contratos/novo" element={<ContractFormPage />} />
             <Route

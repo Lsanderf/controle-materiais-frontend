@@ -4,7 +4,7 @@ import { ErrorMessage, Loading, MovementBadge } from '../components/Feedback';
 import { useAuth } from '../context/useAuth';
 import { useResource } from '../hooks/useResource';
 import { contratoService } from '../services/contratoService';
-import { funcionarioService } from '../services/funcionarioService';
+import { usuarioService } from '../services/usuarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { sortMovementsNewestFirst } from '../utils/formatters';
@@ -15,7 +15,7 @@ export default function DashboardPage() {
     () =>
       Promise.all([
         materialService.list(),
-        funcionarioService.list(),
+        usuarioService.listEncarregados(),
         contratoService.list(),
         movimentacaoService.list(),
       ]),
@@ -56,7 +56,7 @@ export default function DashboardPage() {
               <span className="action-icon">−</span>
               <span>
                 <strong>Registrar retirada</strong>
-                <small>Entregar material a um funcionário</small>
+                <small>Entregar material a um encarregado</small>
               </span>
               <span aria-hidden="true">→</span>
             </Link>
@@ -76,7 +76,7 @@ export default function DashboardPage() {
         <Link className="action-card action-materials" to="/materiais">
           <span className="action-icon">▣</span>
           <span>
-            <strong>Consultar materiais</strong>
+            <strong>Ver materiais</strong>
             <small>Ver itens e saldo disponível</small>
           </span>
           <span aria-hidden="true">→</span>
@@ -107,7 +107,7 @@ export default function DashboardPage() {
               </small>
             </article>
             <article className="stat-card">
-              <span>Funcionários ativos</span>
+              <span>Encarregados ativos</span>
               <strong>{employees.filter((employee) => employee.ativo).length}</strong>
               <small>{employees.length} cadastrados no total</small>
             </article>

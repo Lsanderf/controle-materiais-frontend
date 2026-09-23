@@ -10,7 +10,8 @@ test('somente ADMIN pode estornar retirada ou devolução ainda não estornada',
   for (const tipo of ['RETIRADA', 'DEVOLUCAO']) {
     assert.equal(canReverseMovement({ tipo, estornada: false }, 'ADMIN'), true);
     assert.equal(canReverseMovement({ tipo, estornada: false }, 'OPERADOR'), false);
-    assert.equal(canReverseMovement({ tipo, estornada: false }, 'CONSULTA'), false);
+    assert.equal(canReverseMovement({ tipo, estornada: false }, 'GERENTE'), false);
+    assert.equal(canReverseMovement({ tipo, estornada: false }, 'ENCARREGADO'), false);
     assert.equal(canReverseMovement({ tipo, estornada: true }, 'ADMIN'), false);
   }
 });

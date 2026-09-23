@@ -117,7 +117,8 @@ test('confirmacao de NF fica restrita a admin e operador com rascunho e itens', 
 
   assert.equal(canConfirmNotaFiscal(rascunho, 'ADMIN'), true);
   assert.equal(canConfirmNotaFiscal(rascunho, 'OPERADOR'), true);
-  assert.equal(canConfirmNotaFiscal(rascunho, 'CONSULTA'), false);
+  assert.equal(canConfirmNotaFiscal(rascunho, 'GERENTE'), false);
+  assert.equal(canConfirmNotaFiscal(rascunho, 'ENCARREGADO'), false);
   assert.equal(canConfirmNotaFiscal(semItens, 'ADMIN'), false);
   assert.equal(canConfirmNotaFiscal(confirmada, 'ADMIN'), false);
 });
@@ -127,10 +128,15 @@ test('NF confirmada nao pode ser editada no frontend', () => {
   assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, 'ADMIN'), true);
 });
 
-test('perfil consulta lista e visualiza, mas nao gerencia NF', () => {
-  assert.equal(canManageNotaFiscal('CONSULTA'), false);
-  assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, 'CONSULTA'), false);
-  assert.equal(canConfirmNotaFiscal({ status: 'RASCUNHO', itens: [{}] }, 'CONSULTA'), false);
+test('GERENTE e ENCARREGADO não gerenciam NF', () => {
+  for (const role of ['GERENTE', 'ENCARREGADO']) {
+    assert.equal(canManageNotaFiscal(role), false);
+    assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, role), false);
+    assert.equal(
+      canConfirmNotaFiscal({ status: 'RASCUNHO', itens: [{}] }, role),
+      false,
+    );
+  }
 });
 
 test('validacao exibe erro amigavel antes do envio', () => {

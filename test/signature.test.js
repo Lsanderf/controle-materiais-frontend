@@ -64,9 +64,11 @@ test('assinatura existente não pode ser substituída pela interface', () => {
   assert.equal(canAddSignature(signedReceipt, 'ADMIN'), false);
 });
 
-test('perfil CONSULTA nunca recebe opção de adicionar assinatura', () => {
-  assert.equal(canAddSignature(receipt('RETIRADA'), 'CONSULTA'), false);
-  assert.equal(canAddSignature(receipt('DEVOLUCAO'), 'CONSULTA'), false);
+test('GERENTE e ENCARREGADO não recebem opção de adicionar assinatura', () => {
+  for (const role of ['GERENTE', 'ENCARREGADO']) {
+    assert.equal(canAddSignature(receipt('RETIRADA'), role), false);
+    assert.equal(canAddSignature(receipt('DEVOLUCAO'), role), false);
+  }
 });
 
 test('conflito 409 é identificado para recarregar o comprovante', () => {

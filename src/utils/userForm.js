@@ -1,8 +1,19 @@
+export const USER_ROLES = [
+  'ADMIN',
+  'OPERADOR',
+  'GERENTE',
+  'ENCARREGADO',
+];
+
 export function passwordsMatch(form) {
   return form.password === form.passwordConfirmation;
 }
 
 export function buildUserPayload(form, editing) {
+  if (!USER_ROLES.includes(form.role)) {
+    throw new Error('Perfil de usuário inválido.');
+  }
+
   if (!editing) {
     return {
       username: form.username.trim(),

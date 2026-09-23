@@ -12,7 +12,7 @@ import {
 } from '../components/Feedback';
 import { useResource } from '../hooks/useResource';
 import { contratoService } from '../services/contratoService';
-import { funcionarioService } from '../services/funcionarioService';
+import { usuarioService } from '../services/usuarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
@@ -55,7 +55,10 @@ export default function MovementFormPage({ type }) {
     () =>
       Promise.all([
         materialService.list(),
-        funcionarioService.list(),
+        // Migração pendente: a origem já é de encarregados, mas o contrato de
+        // movimentações ainda exige funcionarioId e byFuncionario. Esses nomes
+        // devem mudar juntos com o serviço e os consumidores dos responses.
+        usuarioService.listEncarregados(),
         contratoService.list(),
       ]),
     [],
@@ -125,8 +128,8 @@ export default function MovementFormPage({ type }) {
   const clientError = useMemo(() => {
     if (!form.funcionarioId)
       return type === 'RETIRADA'
-        ? 'Selecione um funcionario ativo.'
-        : 'Selecione um funcionario existente.';
+        ? 'Selecione um encarregado ativo.'
+        : 'Selecione um encarregado existente.';
     if (!form.contratoId)
       return type === 'RETIRADA'
         ? 'Selecione um contrato ativo.'
@@ -279,7 +282,7 @@ export default function MovementFormPage({ type }) {
 
       {employees.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
-          Nao ha {employees.length === 0 ? 'funcionarios' : 'contratos'}{' '}
+          Nao ha {employees.length === 0 ? 'encarregados' : 'contratos'}{' '}
           {type === 'RETIRADA' ? 'ativos disponiveis' : 'cadastrados'}.
           {' '}{type === 'RETIRADA' ? 'Ative ou cadastre' : 'Cadastre'} o recurso antes de continuar.
         </div>
@@ -287,7 +290,7 @@ export default function MovementFormPage({ type }) {
         <form className="content-card form-card" onSubmit={prepareConfirmation}>
           <div className="form-grid">
             <label className="field">
-              <span>Funcionario</span>
+              <span>Encarregado</span>
               <select
                 value={form.funcionarioId}
                 onChange={(event) => change('funcionarioId', event.target.value)}
@@ -296,7 +299,7 @@ export default function MovementFormPage({ type }) {
                 <option value="">Selecione</option>
                 {employees.map((employee) => (
                   <option key={employee.id} value={employee.id}>
-                    {employee.nome} - {employee.cargo}
+                    {employee.nome}
                     {!employee.ativo ? ' (inativo)' : ''}
                   </option>
                 ))}
@@ -422,7 +425,7 @@ export default function MovementFormPage({ type }) {
             <dd>{selectedMaterial?.nome}</dd>
           </div>
           <div>
-            <dt>Funcionario</dt>
+            <dt>Encarregado</dt>
             <dd>{selectedEmployee?.nome}</dd>
           </div>
           <div>

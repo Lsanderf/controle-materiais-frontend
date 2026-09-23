@@ -1,6 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { roleLabel } from '../utils/formatters';
+import { canAccessEncarregados } from '../utils/encarregados';
 
 export default function MorePage() {
   const { auth, role, logout } = useAuth();
@@ -12,12 +13,16 @@ export default function MorePage() {
   }
 
   const items = [
-    {
-      to: '/funcionarios',
-      title: 'Funcionários',
-      description: 'Cadastros e situação dos funcionários',
-      icon: '♙',
-    },
+    ...(canAccessEncarregados(role)
+      ? [
+          {
+            to: '/encarregados',
+            title: 'Encarregados',
+            description: 'Cadastros e situação dos encarregados',
+            icon: '♙',
+          },
+        ]
+      : []),
     {
       to: '/contratos',
       title: 'Contratos',

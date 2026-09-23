@@ -3,14 +3,17 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ErrorMessage, Loading } from '../components/Feedback';
 import { usuarioService } from '../services/usuarioService';
 import { roleLabel } from '../utils/formatters';
-import { buildUserPayload, passwordsMatch } from '../utils/userForm';
-
-const roles = ['ADMIN', 'OPERADOR', 'CONSULTA'];
+import {
+  buildUserPayload,
+  passwordsMatch,
+  USER_ROLES,
+} from '../utils/userForm';
 
 const roleDescriptions = {
   ADMIN: 'Gerencia cadastros, usuários e movimentações.',
-  OPERADOR: 'Consulta, cria materiais e registra movimentações.',
-  CONSULTA: 'Apenas consulta dados e histórico.',
+  OPERADOR: 'Cria materiais e registra movimentações.',
+  GERENTE: 'Gerencia encarregados e demais recursos permitidos.',
+  ENCARREGADO: 'Acessa somente as funções destinadas ao seu perfil.',
 };
 
 export default function UserFormPage() {
@@ -113,7 +116,7 @@ export default function UserFormPage() {
 
         <fieldset className="role-selector">
           <legend>Perfil de acesso</legend>
-          {roles.map((role) => (
+          {USER_ROLES.map((role) => (
             <label key={role}>
               <input
                 type="radio"
