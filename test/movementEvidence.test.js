@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createMovementFormData } from '../src/utils/movementEvidence.js';
 
 const signature = new Blob(['signature'], { type: 'image/png' });
-const movement = { tipo: 'RETIRADA', funcionarioId: 1, contratoId: 2, materialId: 3, quantidade: 4 };
+const movement = { tipo: 'RETIRADA', encarregadoId: 1, contratoId: 2, materialId: 3, quantidade: 4 };
 
 test('movimentação e assinatura são enviadas juntas como multipart', async () => {
   const data = createMovementFormData(movement, signature);

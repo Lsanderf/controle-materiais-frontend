@@ -15,7 +15,7 @@ export default defineConfig({
     { name: 'mobile', use: { ...devices['Pixel 7'] } },
   ],
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 4174 --strictPort',
+    command: 'node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4174 --strictPort',
     url: 'http://127.0.0.1:4174',
     env: { VITE_API_URL: 'http://127.0.0.1:4174/api' },
   },

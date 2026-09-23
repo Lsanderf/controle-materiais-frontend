@@ -80,8 +80,8 @@ test('criacao de NF monta payload com itens no formato do backend', () => {
     cnpjFornecedor: '11.222.333/0001-81',
     dataEmissao: todayIsoDate(),
     itens: [
-      { materialId: 7, quantidade: 3, valorUnitario: '12.50' },
-      { materialId: 8, quantidade: 2, valorUnitario: '1.99' },
+      { materialId: 7, quantidade: 3, valorUnitario: 12.5 },
+      { materialId: 8, quantidade: 2, valorUnitario: 1.99 },
     ],
   });
 });
@@ -117,7 +117,7 @@ test('confirmacao de NF fica restrita a admin e operador com rascunho e itens', 
 
   assert.equal(canConfirmNotaFiscal(rascunho, 'ADMIN'), true);
   assert.equal(canConfirmNotaFiscal(rascunho, 'OPERADOR'), true);
-  assert.equal(canConfirmNotaFiscal(rascunho, 'CONSULTA'), false);
+  assert.equal(canConfirmNotaFiscal(rascunho, 'GERENTE'), false);
   assert.equal(canConfirmNotaFiscal(semItens, 'ADMIN'), false);
   assert.equal(canConfirmNotaFiscal(confirmada, 'ADMIN'), false);
 });
@@ -127,10 +127,10 @@ test('NF confirmada nao pode ser editada no frontend', () => {
   assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, 'ADMIN'), true);
 });
 
-test('perfil consulta lista e visualiza, mas nao gerencia NF', () => {
-  assert.equal(canManageNotaFiscal('CONSULTA'), false);
-  assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, 'CONSULTA'), false);
-  assert.equal(canConfirmNotaFiscal({ status: 'RASCUNHO', itens: [{}] }, 'CONSULTA'), false);
+test('perfil gerente não gerencia NF', () => {
+  assert.equal(canManageNotaFiscal('GERENTE'), false);
+  assert.equal(canEditNotaFiscal({ status: 'RASCUNHO' }, 'GERENTE'), false);
+  assert.equal(canConfirmNotaFiscal({ status: 'RASCUNHO', itens: [{}] }, 'GERENTE'), false);
 });
 
 test('validacao exibe erro amigavel antes do envio', () => {

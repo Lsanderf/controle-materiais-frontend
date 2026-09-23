@@ -77,7 +77,7 @@ export default function ContractsPage() {
           <h1>Contratos</h1>
           <p>Gerencie os contratos usados nas movimentações.</p>
         </div>
-        {role === 'ADMIN' && (
+        {['ADMIN', 'GERENTE'].includes(role) && (
           <Link className="button button-primary" to="/contratos/novo">
             + Novo contrato
           </Link>
@@ -141,7 +141,7 @@ export default function ContractsPage() {
                 </div>
                 <p>{contract.descricao}</p>
                 <MobileInactivationDetails record={contract} />
-                {role === 'ADMIN' && (
+                {['ADMIN', 'GERENTE'].includes(role) && (
                   <div className="resource-actions">
                     <Link
                       className="button button-secondary"
@@ -170,7 +170,7 @@ export default function ContractsPage() {
                   <th>Descrição</th>
                   <th>Status</th>
                   <th>Inativado em</th>
-                  {role === 'ADMIN' && <th>Ações</th>}
+                  {['ADMIN', 'GERENTE'].includes(role) && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +187,7 @@ export default function ContractsPage() {
                     <td>
                       <InactivationTableValue record={contract} />
                     </td>
-                    {role === 'ADMIN' && (
+                    {['ADMIN', 'GERENTE'].includes(role) && (
                       <td>
                         <div className="table-actions">
                           <Link

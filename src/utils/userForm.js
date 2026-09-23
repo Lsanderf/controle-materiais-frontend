@@ -1,3 +1,5 @@
+import { onlyDigits } from './formatters.js';
+
 export function passwordsMatch(form) {
   return form.password === form.passwordConfirmation;
 }
@@ -5,6 +7,9 @@ export function passwordsMatch(form) {
 export function buildUserPayload(form, editing) {
   if (!editing) {
     return {
+      nome: form.nome.trim(),
+      cpf: form.cpf,
+      celular: onlyDigits(form.celular),
       username: form.username.trim(),
       password: form.password,
       role: form.role,
@@ -12,6 +17,9 @@ export function buildUserPayload(form, editing) {
   }
 
   const payload = {
+    nome: form.nome.trim(),
+    cpf: form.cpf,
+    celular: onlyDigits(form.celular),
     username: form.username.trim(),
     role: form.role,
   };

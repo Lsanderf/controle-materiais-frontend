@@ -16,7 +16,7 @@ import StatusFilter from '../components/StatusFilter';
 import { useAuth } from '../context/useAuth';
 import { useResource } from '../hooks/useResource';
 import { usuarioService } from '../services/usuarioService';
-import { roleLabel } from '../utils/formatters';
+import { formatCelular, roleLabel } from '../utils/formatters';
 import { filterBySearchAndStatus } from '../utils/listFilters';
 
 export default function UsersPage() {
@@ -42,7 +42,7 @@ export default function UsersPage() {
       users ?? [],
       search,
       statusFilter,
-      (user) => [user.username, roleLabel(user.role)],
+      (user) => [user.nome, user.cpf, user.celular, user.username, roleLabel(user.role)],
     );
   }, [search, statusFilter, users]);
 
@@ -113,7 +113,7 @@ export default function UsersPage() {
             type="search"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Buscar por usuário ou perfil"
+            placeholder="Buscar por nome, CPF, usuário ou perfil"
             aria-label="Buscar usuários"
           />
         </label>
@@ -154,11 +154,12 @@ export default function UsersPage() {
                 <div className="resource-card-heading">
                   <div>
                     <small>Usuário #{user.id}</small>
-                    <h2>{user.username}</h2>
+                    <h2>{user.nome}</h2>
                   </div>
                   <StatusBadge active={user.ativo} />
                 </div>
-                <p>{roleLabel(user.role)}</p>
+                <p>@{user.username} · {roleLabel(user.role)}</p>
+                <p>CPF: {user.cpf} · Celular: {formatCelular(user.celular)}</p>
                 <MobileInactivationDetails record={user} />
                 <div className="resource-actions">
                   <Link
@@ -184,7 +185,8 @@ export default function UsersPage() {
               <thead>
                 <tr>
                   <th>ID</th>
-                  <th>Usuário</th>
+                  <th>Nome / usuário</th>
+                  <th>CPF / celular</th>
                   <th>Perfil</th>
                   <th>Status</th>
                   <th>Inativado em</th>
@@ -196,8 +198,10 @@ export default function UsersPage() {
                   <tr key={user.id}>
                     <td>#{user.id}</td>
                     <td>
-                      <strong>{user.username}</strong>
+                      <strong>{user.nome}</strong>
+                      <small className="table-secondary">@{user.username}</small>
                     </td>
+                    <td>{user.cpf}<small className="table-secondary">{formatCelular(user.celular)}</small></td>
                     <td>{roleLabel(user.role)}</td>
                     <td>
                       <StatusBadge active={user.ativo} />

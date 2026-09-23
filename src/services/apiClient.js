@@ -49,11 +49,23 @@ async function readBlobResponse(response) {
   const contentType = response.headers.get('Content-Type') ?? '';
   if (/html|json|text\//i.test(contentType)) throw unexpectedResponse(response.status);
   const blob = await response.blob();
-  // Missing/mislabelled Content-Type must not turn a proxy error page into a file.
-  const prefix = await blob.slice(0, 1024).text();
-  if (!blob.size || !safeErrorText(prefix, null) || /^\s*[[{]/.test(prefix)) {
+  if (!blob.size) throw unexpectedResponse(response.status);
+
+  // Imagens são binárias: decodificá-las como texto rejeitava PNGs de assinatura
+  // válidos. Valide os formatos aceitos por suas assinaturas mágicas.
+  const bytes = new Uint8Array(await blob.slice(0, 12).arrayBuffer());
+  const isPng = bytes.length >= 8
+    && [137, 80, 78, 71, 13, 10, 26, 10].every((value, index) => bytes[index] === value);
+  const isJpeg = bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const imageType = contentType.split(';', 1)[0].trim().toLowerCase();
+  if ((imageType === 'image/png' && !isPng) || (imageType === 'image/jpeg' && !isJpeg)) {
     throw unexpectedResponse(response.status);
   }
+  if (isPng || isJpeg) return blob;
+
+  // Sem tipo conhecido, continue recusando páginas de proxy ou JSON disfarçados.
+  const prefix = await blob.slice(0, 1024).text();
+  if (!safeErrorText(prefix, null) || /^\s*[[{]/.test(prefix)) throw unexpectedResponse(response.status);
   return blob;
 }
 

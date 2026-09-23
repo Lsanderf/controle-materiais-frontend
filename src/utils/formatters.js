@@ -28,7 +28,8 @@ export function roleLabel(role) {
   return {
     ADMIN: 'Administrador',
     OPERADOR: 'Operador',
-    CONSULTA: 'Consulta',
+    GERENTE: 'Gerente',
+    ENCARREGADO: 'Encarregado',
   }[role] ?? role;
 }
 
@@ -74,7 +75,7 @@ export function formatInactivationDate(record) {
 }
 
 export function onlyDigits(value) {
-  return value.replace(/\D/g, '');
+  return String(value ?? '').replace(/\D/g, '');
 }
 
 export function formatCpf(value) {
@@ -83,4 +84,12 @@ export function formatCpf(value) {
     .replace(/^(\d{3})(\d)/, '$1.$2')
     .replace(/^(\d{3})\.(\d{3})(\d)/, '$1.$2.$3')
     .replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+}
+
+export function formatCelular(value) {
+  const digits = onlyDigits(value).slice(0, 11);
+
+  if (digits.length <= 2) return digits ? `(${digits}` : '';
+  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
 }

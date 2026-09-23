@@ -10,7 +10,7 @@ const links = [
   { id: 2, nome: 'Inativo', ativo: false },
 ];
 
-test('retirada disponibiliza somente funcionário e contrato ativos', () => {
+test('retirada disponibiliza somente encarregado e contrato ativos', () => {
   assert.deepEqual(
     selectableMovementLinks(links, 'RETIRADA').map(({ id }) => id),
     [1],

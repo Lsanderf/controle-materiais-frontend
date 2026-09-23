@@ -30,8 +30,8 @@ export default function ReturnPhotoPicker({ file, onChange, disabled }) {
 
   return (
     <section className="return-photo-picker" aria-labelledby={`${id}-title`}>
-      <h3 id={`${id}-title`}>Foto do material (opcional)</h3>
-      <p>Você pode concluir a devolução sem foto.</p>
+      <h3 id={`${id}-title`}>Foto do material (obrigatória)</h3>
+      <p>Adicione uma foto para concluir a devolução.</p>
       <ErrorMessage error={error} />
       <div className="return-photo-actions">
         <label className={`button button-secondary${disabled ? ' is-disabled' : ''}`}>

@@ -88,7 +88,7 @@ async function fillInvoice(page) {
   await page.getByLabel('CNPJ do fornecedor').fill(INVOICE.cnpjFornecedor);
   await page.getByLabel('Data de emissao').fill(INVOICE.dataEmissao);
   await rows(page).first().getByLabel('Quantidade', { exact: true }).fill('12');
-  await rows(page).first().getByLabel('Valor unitario').fill('9.50');
+  await rows(page).first().getByLabel('Valor unitário').fill('9.50');
 }
 
 async function snapshot(page) {
@@ -155,7 +155,7 @@ test('primeiro material pode ser criado com lista vazia e NF manual continua sal
   expect(writes(api)).toHaveLength(1);
   await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
-  expect(api.draft.itens).toEqual([{ materialId: 100, quantidade: 12, valorUnitario: '9.50' }]);
+  expect(api.draft.itens).toEqual([{ materialId: 100, quantidade: 12, valorUnitario: 9.5 }]);
   expect(api.draft.status).toBe('RASCUNHO');
   expect(api.materials[0].quantidadeEstoque).toBe(0);
   expect(writes(api).some((call) => call.path.includes('confirmar') || call.path.includes('movimentacoes'))).toBe(false);
@@ -199,8 +199,8 @@ test('dois produtos XML criam materiais distintos, sem levar quantidade ao cadas
   await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
   expect(api.draft.itens).toEqual([
-    { materialId: 102, quantidade: 120, valorUnitario: '2.5' },
-    { materialId: 101, quantidade: 15, valorUnitario: '3' },
+    { materialId: 102, quantidade: 120, valorUnitario: 2.5 },
+    { materialId: 101, quantidade: 15, valorUnitario: 3 },
   ]);
 });
 
@@ -282,15 +282,15 @@ test('edição de rascunho preserva alterações ao criar material e salva com P
   await page.getByLabel('Numero', { exact: true }).fill('Alterado');
   await page.getByRole('button', { name: '+ Adicionar item' }).click();
   await rows(page).nth(1).getByLabel('Quantidade', { exact: true }).fill('2');
-  await rows(page).nth(1).getByLabel('Valor unitario').fill('4');
+  await rows(page).nth(1).getByLabel('Valor unitário').fill('4');
   await createMaterial(page, 1, 'Material da edição');
   await expect(page.getByLabel('Numero', { exact: true })).toHaveValue('Alterado');
   await expect(rows(page).first().getByRole('combobox')).toHaveValue('7');
   await page.getByRole('button', { name: 'Salvar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
   expect(api.calls.find((call) => call.method === 'PUT')?.body.itens).toEqual([
-    { materialId: 7, quantidade: 3, valorUnitario: '2.00' },
-    { materialId: 101, quantidade: 2, valorUnitario: '4' },
+    { materialId: 7, quantidade: 3, valorUnitario: 2 },
+    { materialId: 101, quantidade: 2, valorUnitario: 4 },
   ]);
 });
 
@@ -349,12 +349,11 @@ test('OPERADOR pode cadastrar pela lista de materiais, mas não editar nem o pr�
   expect(api.materials[0]).toEqual(EXISTING_MATERIAL);
 });
 
-test('CONSULTA pode listar materiais, mas não cadastrar ou editar', async ({ page }) => {
-  const api = await setup(page, { role: 'CONSULTA' });
+test('GERENTE não acessa materiais', async ({ page }) => {
+  const api = await setup(page, { role: 'GERENTE' });
   await page.goto('/materiais');
-  await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: '+ Novo material', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toHaveCount(0);
   for (const path of ['/materiais/novo', '/materiais/7/editar']) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -364,8 +363,8 @@ test('CONSULTA pode listar materiais, mas não cadastrar ou editar', async ({ pa
   expect(writes(api)).toEqual([]);
 });
 
-test('CONSULTA continua sem acesso a cadastro ou edição de NF', async ({ page }) => {
-  const api = await setup(page, { role: 'CONSULTA' });
+test('GERENTE continua sem acesso a cadastro ou edição de NF', async ({ page }) => {
+  const api = await setup(page, { role: 'GERENTE' });
   for (const path of ['/notas-fiscais/nova', '/notas-fiscais/900/editar']) {
     await page.goto(path);
     await expect(page).toHaveURL(/\/dashboard$/);

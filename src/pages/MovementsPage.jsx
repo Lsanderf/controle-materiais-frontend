@@ -5,7 +5,7 @@ const movementOptions = [
   {
     type: 'retirada',
     title: 'Retirada',
-    description: 'Entregar materiais a um funcionário e contrato.',
+    description: 'Entregar materiais a um encarregado e contrato.',
     icon: '−',
     className: 'movement-withdraw',
   },

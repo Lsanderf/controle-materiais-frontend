@@ -2,15 +2,16 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ErrorMessage, Loading } from '../components/Feedback';
 import { usuarioService } from '../services/usuarioService';
-import { roleLabel } from '../utils/formatters';
+import { formatCelular, roleLabel } from '../utils/formatters';
 import { buildUserPayload, passwordsMatch } from '../utils/userForm';
 
-const roles = ['ADMIN', 'OPERADOR', 'CONSULTA'];
+const roles = ['ADMIN', 'OPERADOR', 'GERENTE', 'ENCARREGADO'];
 
 const roleDescriptions = {
   ADMIN: 'Gerencia cadastros, usuários e movimentações.',
   OPERADOR: 'Consulta, cria materiais e registra movimentações.',
-  CONSULTA: 'Apenas consulta dados e histórico.',
+  GERENTE: 'Administra contratos e cria requisições para encarregados.',
+  ENCARREGADO: 'Consulta e confirma somente as próprias requisições.',
 };
 
 export default function UserFormPage() {
@@ -18,6 +19,9 @@ export default function UserFormPage() {
   const navigate = useNavigate();
   const editing = Boolean(id);
   const [form, setForm] = useState({
+    nome: '',
+    cpf: '',
+    celular: '',
     username: '',
     role: 'OPERADOR',
     password: '',
@@ -35,6 +39,9 @@ export default function UserFormPage() {
       .then((user) =>
         setForm((current) => ({
           ...current,
+          nome: user.nome,
+          cpf: user.cpf,
+          celular: formatCelular(user.celular),
           username: user.username,
           role: user.role,
         })),
@@ -96,6 +103,21 @@ export default function UserFormPage() {
 
       <form className="content-card form-card" onSubmit={handleSubmit}>
         <ErrorMessage error={error} />
+
+        <div className="form-grid">
+          <label className="field">
+            <span>Nome</span>
+            <input value={form.nome} onChange={(event) => change('nome', event.target.value)} required maxLength="150" />
+          </label>
+          <label className="field">
+            <span>CPF</span>
+            <input value={form.cpf} onChange={(event) => change('cpf', event.target.value)} required inputMode="numeric" maxLength="14" />
+          </label>
+          <label className="field">
+            <span>Celular</span>
+            <input value={form.celular} onChange={(event) => change('celular', formatCelular(event.target.value))} required inputMode="numeric" maxLength="15" />
+          </label>
+        </div>
 
         <label className="field">
           <span>Nome de usuário</span>

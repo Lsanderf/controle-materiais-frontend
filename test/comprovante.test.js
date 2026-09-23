@@ -22,7 +22,7 @@ test('histórico oferece a ação Ver comprovante e abre o modal', () => {
   assert.match(source, /<MovementReceiptModal/);
 });
 
-test('modal mostra dados imutáveis, NF e assinatura sem expor CPF', () => {
+test('modal mostra dados imutáveis, NF, encarregado e assinatura sem expor CPF', () => {
   const source = readFileSync(
     new URL('../src/components/MovementReceiptModal.jsx', import.meta.url),
     'utf8',
@@ -30,8 +30,9 @@ test('modal mostra dados imutáveis, NF e assinatura sem expor CPF', () => {
 
   assert.match(source, /Registro imutável/);
   assert.match(source, /Nota Fiscal/);
-  assert.match(source, /Assinatura do funcionário/);
-  assert.doesNotMatch(source, /funcionario\?\.cpf/);
+  assert.match(source, /Assinatura coletada/);
+  assert.match(source, /Encarregado/);
+  assert.doesNotMatch(source, /encarregado\?\.cpf/);
 });
 
 test('retirada e devolução aceitam observação opcional no formulário', () => {

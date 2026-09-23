@@ -12,7 +12,7 @@ import {
 } from '../components/Feedback';
 import { useResource } from '../hooks/useResource';
 import { contratoService } from '../services/contratoService';
-import { funcionarioService } from '../services/funcionarioService';
+import { usuarioService } from '../services/usuarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
 import { movementLabel } from '../utils/formatters';
@@ -31,10 +31,13 @@ export default function MovementFormPage({ type }) {
   const canRegister = ['ADMIN', 'OPERADOR'].includes(role) && ['RETIRADA', 'DEVOLUCAO'].includes(type);
   const [searchParams] = useSearchParams();
   const initialMaterial = searchParams.get('material') ?? '';
+  const requisicaoId = searchParams.get('requisicao') ?? '';
+  const initialEncarregado = searchParams.get('encarregado') ?? '';
+  const initialContrato = searchParams.get('contrato') ?? '';
   const [form, setForm] = useState({
     materialId: initialMaterial,
-    funcionarioId: '',
-    contratoId: '',
+    encarregadoId: initialEncarregado,
+    contratoId: initialContrato,
     quantidade: '',
     observacao: '',
   });
@@ -46,7 +49,7 @@ export default function MovementFormPage({ type }) {
   const [photo, setPhoto] = useState(null);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const submittingRef = useRef(false);
-  const [employeeMovements, setEmployeeMovements] = useState([]);
+  const [encarregadoMovements, setEncarregadoMovements] = useState([]);
   const [balanceLoading, setBalanceLoading] = useState(false);
   const [balanceError, setBalanceError] = useState(null);
   const [balanceReload, setBalanceReload] = useState(0);
@@ -55,7 +58,7 @@ export default function MovementFormPage({ type }) {
     () =>
       Promise.all([
         materialService.list(),
-        funcionarioService.list(),
+        usuarioService.listEncarregados(),
         contratoService.list(),
       ]),
     [],
@@ -68,14 +71,14 @@ export default function MovementFormPage({ type }) {
     reload,
   } = useResource(loader, [loader]);
 
-  const [materials = [], allEmployees = [], allContracts = []] = data ?? [];
-  const employees = selectableMovementLinks(allEmployees, type);
+  const [materials = [], allEncarregados = [], allContracts = []] = data ?? [];
+  const encarregados = selectableMovementLinks(allEncarregados, type);
   const contracts = selectableMovementLinks(allContracts, type);
   const selectedMaterial = materials.find(
     (material) => String(material.id) === form.materialId,
   );
-  const selectedEmployee = employees.find(
-    (employee) => String(employee.id) === form.funcionarioId,
+  const selectedEncarregado = encarregados.find(
+    (encarregado) => String(encarregado.id) === form.encarregadoId,
   );
   const selectedContract = contracts.find(
     (contract) => String(contract.id) === form.contratoId,
@@ -83,8 +86,8 @@ export default function MovementFormPage({ type }) {
   const quantity = Number(form.quantidade);
 
   useEffect(() => {
-    if (type !== 'DEVOLUCAO' || !form.funcionarioId) {
-      setEmployeeMovements([]);
+    if (type !== 'DEVOLUCAO' || !form.encarregadoId) {
+      setEncarregadoMovements([]);
       setBalanceLoading(false);
       setBalanceError(null);
       return;
@@ -94,13 +97,13 @@ export default function MovementFormPage({ type }) {
     setBalanceLoading(true);
     setBalanceError(null);
     movimentacaoService
-      .byFuncionario(form.funcionarioId)
+      .byEncarregado(form.encarregadoId)
       .then((movements) => {
-        if (active) setEmployeeMovements(movements);
+        if (active) setEncarregadoMovements(movements);
       })
       .catch((requestError) => {
         if (active) {
-          setEmployeeMovements([]);
+          setEncarregadoMovements([]);
           setBalanceError(requestError);
         }
       })
@@ -111,22 +114,22 @@ export default function MovementFormPage({ type }) {
     return () => {
       active = false;
     };
-  }, [form.funcionarioId, type, balanceReload]);
+  }, [form.encarregadoId, type, balanceReload]);
 
   const returnBalance = useMemo(() => {
     if (type !== 'DEVOLUCAO' || !selectedMaterial || !selectedContract || balanceLoading || balanceError) return null;
     return calculateReturnBalance(
-      employeeMovements,
+      encarregadoMovements,
       selectedMaterial.nome,
       selectedContract.nome,
     );
-  }, [employeeMovements, selectedContract, selectedMaterial, type, balanceLoading, balanceError]);
+  }, [encarregadoMovements, selectedContract, selectedMaterial, type, balanceLoading, balanceError]);
 
   const clientError = useMemo(() => {
-    if (!form.funcionarioId)
+    if (!form.encarregadoId)
       return type === 'RETIRADA'
-        ? 'Selecione um funcionario ativo.'
-        : 'Selecione um funcionario existente.';
+        ? 'Selecione um encarregado ativo.'
+        : 'Selecione um encarregado existente.';
     if (!form.contratoId)
       return type === 'RETIRADA'
         ? 'Selecione um contrato ativo.'
@@ -153,7 +156,7 @@ export default function MovementFormPage({ type }) {
     return '';
   }, [
     form.contratoId,
-    form.funcionarioId,
+    form.encarregadoId,
     form.materialId,
     form.observacao,
     quantity,
@@ -181,6 +184,10 @@ export default function MovementFormPage({ type }) {
 
   async function confirmMovement(signature) {
     if (!canRegister || submittingRef.current || balanceLoading || balanceError) return;
+    if (type === 'DEVOLUCAO' && !photo) {
+      setError(new Error('A foto do material devolvido é obrigatória.'));
+      return;
+    }
     if (clientError) {
       setError(new Error(clientError));
       return;
@@ -190,7 +197,8 @@ export default function MovementFormPage({ type }) {
     setError(null);
     try {
       const movement = await movimentacaoService.create({
-        funcionarioId: Number(form.funcionarioId),
+        encarregadoId: Number(form.encarregadoId),
+        ...(requisicaoId && { requisicaoId: Number(requisicaoId) }),
         contratoId: Number(form.contratoId),
         materialId: Number(form.materialId),
         quantidade: quantity,
@@ -204,17 +212,17 @@ export default function MovementFormPage({ type }) {
       setCreatedMovement(movement);
       setReceiptOpen(true);
       setPhoto(null);
-      setData(([currentMaterials, currentEmployees, currentContracts]) => [
+      setData(([currentMaterials, currentEncarregados, currentContracts]) => [
         currentMaterials.map((material) => String(material.id) === form.materialId
           ? { ...material, quantidadeEstoque: material.quantidadeEstoque + (type === 'RETIRADA' ? -quantity : quantity) }
           : material),
-        currentEmployees,
+        currentEncarregados,
         currentContracts,
       ]);
       setForm({
         materialId: '',
-        funcionarioId: '',
-        contratoId: '',
+        encarregadoId: initialEncarregado,
+        contratoId: initialContrato,
         quantidade: '',
         observacao: '',
       });
@@ -277,9 +285,9 @@ export default function MovementFormPage({ type }) {
         </button>
       )}
 
-      {employees.length === 0 || contracts.length === 0 ? (
+      {encarregados.length === 0 || contracts.length === 0 ? (
         <div className="alert alert-warning">
-          Nao ha {employees.length === 0 ? 'funcionarios' : 'contratos'}{' '}
+          Nao ha {encarregados.length === 0 ? 'encarregados' : 'contratos'}{' '}
           {type === 'RETIRADA' ? 'ativos disponiveis' : 'cadastrados'}.
           {' '}{type === 'RETIRADA' ? 'Ative ou cadastre' : 'Cadastre'} o recurso antes de continuar.
         </div>
@@ -287,17 +295,17 @@ export default function MovementFormPage({ type }) {
         <form className="content-card form-card" onSubmit={prepareConfirmation}>
           <div className="form-grid">
             <label className="field">
-              <span>Funcionario</span>
+              <span>Encarregado</span>
               <select
-                value={form.funcionarioId}
-                onChange={(event) => change('funcionarioId', event.target.value)}
+                value={form.encarregadoId}
+                onChange={(event) => change('encarregadoId', event.target.value)}
+                disabled={Boolean(requisicaoId)}
                 required
               >
                 <option value="">Selecione</option>
-                {employees.map((employee) => (
-                  <option key={employee.id} value={employee.id}>
-                    {employee.nome} - {employee.cargo}
-                    {!employee.ativo ? ' (inativo)' : ''}
+                {encarregados.map((encarregado) => (
+                  <option key={encarregado.id} value={encarregado.id}>
+                    {encarregado.nome}
                   </option>
                 ))}
               </select>
@@ -308,6 +316,7 @@ export default function MovementFormPage({ type }) {
               <select
                 value={form.contratoId}
                 onChange={(event) => change('contratoId', event.target.value)}
+                disabled={Boolean(requisicaoId)}
                 required
               >
                 <option value="">Selecione</option>
@@ -369,7 +378,7 @@ export default function MovementFormPage({ type }) {
           </div>
 
           {type === 'DEVOLUCAO' &&
-            selectedEmployee &&
+            selectedEncarregado &&
             selectedContract &&
             selectedMaterial && (
               <div className="balance-info">
@@ -407,11 +416,12 @@ export default function MovementFormPage({ type }) {
 
       {confirming && (
       <SignaturePad
-        employeeName={selectedEmployee?.nome}
+        employeeName={selectedEncarregado?.nome}
         saving={saving}
         error={error}
         confirmLabel={`Confirmar ${movementLabel(type).toLocaleLowerCase('pt-BR')}`}
         savingLabel="Registrando movimentação..."
+        confirmEnabled={type !== 'DEVOLUCAO' || Boolean(photo)}
         onCancel={() => { if (!saving) { setConfirming(false); setError(null); } }}
         onConfirm={confirmMovement}
         summary={
@@ -422,8 +432,8 @@ export default function MovementFormPage({ type }) {
             <dd>{selectedMaterial?.nome}</dd>
           </div>
           <div>
-            <dt>Funcionario</dt>
-            <dd>{selectedEmployee?.nome}</dd>
+            <dt>Encarregado</dt>
+            <dd>{selectedEncarregado?.nome}</dd>
           </div>
           <div>
             <dt>Contrato</dt>

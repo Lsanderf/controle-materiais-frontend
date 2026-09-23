@@ -12,14 +12,15 @@ async function setup(page, role = 'OPERADOR') {
   const api = { signatureStatus: 200, signatureGate: null, writes: [] };
   const evidence = (id, tipo, sha256) => ({
     id, tipo, sha256, dataEvidencia: RECORDED_AT, tamanhoBytes: IMAGE.length,
-    funcionario: { id: 1, nome: 'João Silva' }, registradaPor: { id: 1, username: 'operador' },
+    encarregado: { id: 1, nome: 'João Silva' }, assinante: { id: 1, nome: 'João Silva' },
+    registradaPor: { id: 1, username: 'operador' },
     contentType: 'image/png', urlArquivo: `/movimentacoes/42/evidencias/${id}/arquivo`,
     // Mesmo que dados internos sejam incluídos indevidamente, a UI não os apresenta.
     storageKey: PRIVATE_KEY, caminhoFisico: PRIVATE_PATH, nomeArquivo: PRIVATE_PATH,
   });
   api.receipt = {
     id: 42, tipo: 'DEVOLUCAO', quantidade: 1, versao: 1, dataMovimentacao: RECORDED_AT,
-    material: { id: 1, nome: 'Cabo óptico' }, funcionario: { id: 1, nome: 'João Silva' },
+    material: { id: 1, nome: 'Cabo óptico' }, encarregado: { id: 1, nome: 'João Silva' },
     contrato: { id: 1, nome: 'Contrato A' },
     evidencias: [evidence(11, 'ASSINATURA', SIGNATURE_HASH), evidence(12, 'FOTO_DEVOLUCAO', PHOTO_HASH)],
   };
@@ -45,7 +46,7 @@ async function setup(page, role = 'OPERADOR') {
       return route.fulfill({ contentType: 'image/png', body: IMAGE, headers: { 'Cache-Control': 'no-store' } });
     }
     if (path === '/movimentacoes') return route.fulfill({ json: [{
-      ...api.receipt, material: 'Cabo óptico', funcionario: 'João Silva', contrato: 'Contrato A',
+      ...api.receipt, material: 'Cabo óptico', encarregado: 'João Silva', contrato: 'Contrato A',
     }] });
     return route.fulfill({ json: [] });
   });
@@ -60,7 +61,7 @@ async function openReceipt(page) {
   return dialog;
 }
 
-for (const role of ['OPERADOR', 'CONSULTA']) {
+for (const role of ['OPERADOR', 'ADMIN']) {
   test(`${role}: comprovante prioriza evidências e permite abrir detalhes e copiar cada hash completo`, async ({ page }) => {
     const api = await setup(page, role);
     const dialog = await openReceipt(page);
@@ -169,7 +170,7 @@ for (const clipboardState of ['indisponível', 'negada']) {
 
 test('hash de 64 caracteres fica recolhido e não provoca rolagem horizontal em 320 px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
-  await setup(page, 'CONSULTA');
+  await setup(page, 'ADMIN');
   const dialog = await openReceipt(page);
   for (const card of await dialog.locator('.receipt-evidence').all()) {
     await expect(card.locator('code')).toBeHidden();

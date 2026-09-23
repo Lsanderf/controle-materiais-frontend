@@ -17,10 +17,10 @@ async function setup(page, role = 'OPERADOR') {
     const path = new URL(request.url()).pathname.replace('/api', '');
     if (request.method() !== 'GET') api.writes.push(path);
     if (path === '/materiais') return route.fulfill({ json: [{ ...MATERIAL, quantidadeEstoque: api.stock }] });
-    if (path === '/funcionarios') return route.fulfill({ json: [EMPLOYEE] });
+    if (path === '/usuarios/encarregados') return route.fulfill({ json: [EMPLOYEE] });
     if (path === '/contratos') return route.fulfill({ json: [CONTRACT] });
-    if (path === '/movimentacoes/funcionario/1' && api.balanceFailure) return api.balanceFailure(route);
-    if (path === '/movimentacoes/funcionario/1') return route.fulfill({ json: [
+    if (path === '/movimentacoes/encarregado/1' && api.balanceFailure) return api.balanceFailure(route);
+    if (path === '/movimentacoes/encarregado/1') return route.fulfill({ json: [
       { tipo: 'RETIRADA', material: MATERIAL.nome, contrato: CONTRACT.nome, quantidade: 6 },
     ] });
     if (path === '/movimentacoes' && request.method() === 'POST') {
@@ -42,20 +42,20 @@ async function setup(page, role = 'OPERADOR') {
         api.files.set(evidencias[1].urlArquivo, photo);
       }
       api.receipt = {
-        ...movement, id: 42, material: MATERIAL, funcionario: EMPLOYEE, contrato: CONTRACT,
+        ...movement, id: 42, material: MATERIAL, encarregado: EMPLOYEE, contrato: CONTRACT,
         registradoPor: { username: 'teste' }, versao: 1, evidencias,
       };
       return route.fulfill({ status: 201, json: {
-        ...movement, id: 42, funcionario: EMPLOYEE.nome, contrato: CONTRACT.nome, material: MATERIAL.nome,
+        ...movement, id: 42, encarregado: EMPLOYEE.nome, contrato: CONTRACT.nome, material: MATERIAL.nome,
       } });
     }
     if (path.endsWith('/comprovante')) return route.fulfill({ json: api.receipt });
     if (api.files.has(path)) {
       const file = api.files.get(path);
-      return route.fulfill({ body: Buffer.from(await file.arrayBuffer()), contentType: file.type });
+      return route.fulfill({ body: Buffer.from(await file.arrayBuffer()), contentType: 'image/png' });
     }
     if (path === '/movimentacoes') return route.fulfill({ json: api.receipt ? [
-      { ...api.receipt, funcionario: EMPLOYEE.nome, contrato: CONTRACT.nome, material: MATERIAL.nome },
+      { ...api.receipt, encarregado: EMPLOYEE.nome, contrato: CONTRACT.nome, material: MATERIAL.nome },
     ] : [] });
     return route.fulfill({ json: [] });
   });
@@ -64,7 +64,7 @@ async function setup(page, role = 'OPERADOR') {
 
 async function fill(page, type = 'RETIRADA') {
   await page.goto(`/movimentacoes/${type === 'RETIRADA' ? 'retirada' : 'devolucao'}`);
-  await page.getByRole('combobox', { name: 'Funcionario', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Encarregado', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: /^Material/ }).selectOption('1');
   await page.getByLabel(/^Quantidade/).fill('3');
@@ -111,11 +111,12 @@ for (const type of ['RETIRADA', 'DEVOLUCAO']) {
     expect(api.posts).toEqual([]);
   });
 
-  test(`${type}: assinatura permite confirmar sem foto e sucesso limpa o formulário`, async ({ page }) => {
+  test(`${type}: evidências obrigatórias permitem confirmar e sucesso limpa o formulário`, async ({ page }) => {
     const api = await setup(page);
     await fill(page, type);
     if (type === 'RETIRADA') await expect(signatureDialog(page).getByText('Foto do material (opcional)', { exact: true })).toHaveCount(0);
     await draw(page);
+    if (type === 'DEVOLUCAO') await selectPhoto(page);
     await signatureDialog(page).getByRole('button', { name: `Confirmar ${label}`, exact: true }).click();
     await expect(signatureDialog(page)).toHaveCount(0);
     const receipt = page.getByRole('dialog', { name: 'Comprovante de movimentação' });
@@ -125,12 +126,13 @@ for (const type of ['RETIRADA', 'DEVOLUCAO']) {
     expect(api.posts[0].authorization).toBe('Bearer test-token');
     expect(api.posts[0].signature.type).toBe('image/png');
     expect(api.posts[0].signature.size).toBeGreaterThan(0);
-    expect(api.posts[0].photo).toBe(null);
+    if (type === 'RETIRADA') expect(api.posts[0].photo).toBe(null);
+    else expect(api.posts[0].photo.type).toBe('image/png');
     expect(api.posts[0].movement).toMatchObject({ tipo: type, quantidade: 3, observacao: 'Entrega revisada' });
     await receipt.getByRole('button', { name: 'Fechar', exact: true }).click();
     await expect(page.getByLabel(/^Quantidade/)).toHaveValue('');
     await expect(page.getByLabel(/^Observacao/)).toHaveValue('');
-    for (const field of ['Funcionario', 'Contrato', /^Material/]) await expect(page.getByRole('combobox', { name: field })).toHaveValue('');
+    for (const field of ['Encarregado', 'Contrato', /^Material/]) await expect(page.getByRole('combobox', { name: field })).toHaveValue('');
   });
 }
 
@@ -147,9 +149,12 @@ test('devolução oferece galeria/câmera, prévia, substituição e remoção a
   await dialog.getByRole('button', { name: 'Remover foto', exact: true }).click();
   await expect(dialog.getByRole('img')).toHaveCount(0);
   await draw(page);
+  await expect(dialog.getByRole('button', { name: 'Confirmar devolução', exact: true })).toBeDisabled();
+  expect(api.posts).toHaveLength(0);
+  await selectPhoto(page);
   await dialog.getByRole('button', { name: 'Confirmar devolução', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect(api.posts[0].photo).toBe(null);
+  expect(api.posts[0].photo.type).toBe('image/png');
 });
 
 test('foto enviada aparece no comprovante e é limpa para a próxima devolução', async ({ page }) => {
@@ -164,7 +169,7 @@ test('foto enviada aparece no comprovante e é limpa para a próxima devolução
   expect(api.posts[0].photo.type).toBe('image/png');
   expect(Buffer.from(await api.posts[0].photo.arrayBuffer())).toEqual(PHOTO);
   await receipt.getByRole('button', { name: 'Fechar', exact: true }).click();
-  await page.getByRole('combobox', { name: 'Funcionario', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Encarregado', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: /^Material/ }).selectOption('1');
   await page.getByLabel(/^Quantidade/).fill('1');
@@ -240,7 +245,7 @@ test('falha na consulta do saldo da devolução permite recarregar sem perder os
   const api = await setup(page);
   api.balanceFailure = failure.respond;
   await page.goto('/movimentacoes/devolucao');
-  await page.getByRole('combobox', { name: 'Funcionario', exact: true }).selectOption('1');
+  await page.getByRole('combobox', { name: 'Encarregado', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: /^Material/ }).selectOption('1');
   await page.getByLabel(/^Quantidade/).fill('3');
@@ -295,18 +300,20 @@ test('envio pendente bloqueia reenvio e cancelamento', async ({ page }) => {
   await expect(signatureDialog(page)).toHaveCount(0);
 });
 
-test('CONSULTA só visualiza comprovantes históricos e ENTRADA continua com NF', async ({ page }) => {
-  const api = await setup(page, 'CONSULTA');
+test('ADMIN registra movimentações, visualiza comprovantes históricos e ENTRADA continua com NF', async ({ page }) => {
+  const api = await setup(page, 'ADMIN');
   api.receipt = { id: 42, tipo: 'RETIRADA', quantidade: 1, material: MATERIAL,
-    funcionario: EMPLOYEE, contrato: CONTRACT, evidencias: [], versao: 1 };
+    encarregado: EMPLOYEE, contrato: CONTRACT, evidencias: [], versao: 1 };
   await page.goto('/movimentacoes/retirada');
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/movimentacoes\/retirada$/);
+  await expect(page.getByRole('heading', { name: 'Registrar retirada' })).toBeVisible();
   await page.goto('/movimentacoes/devolucao');
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page).toHaveURL(/\/movimentacoes\/devolucao$/);
+  await expect(page.getByRole('heading', { name: 'Registrar devolução' })).toBeVisible();
   await page.goto('/movimentacoes/historico');
   await page.getByRole('button', { name: 'Ver comprovante', exact: true }).first().click();
   await expect(page.getByText('Registro histórico sem assinatura', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Adicionar assinatura', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Adicionar assinatura', exact: true })).toBeVisible();
   api.receipt = { ...api.receipt, tipo: 'ENTRADA', notaFiscal: { id: 1, numero: '123', serie: '1' } };
   await page.getByRole('button', { name: 'Fechar', exact: true }).click();
   await page.getByRole('button', { name: 'Ver comprovante', exact: true }).first().click();

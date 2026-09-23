@@ -126,7 +126,7 @@ function EvidencePreview({ evidence }) {
     <div className="receipt-evidence">
       <div className="receipt-evidence-heading">
         <div>
-          <strong>{isPhoto ? 'Foto do material devolvido' : 'Assinatura do funcionário'}</strong>
+          <strong>{isPhoto ? 'Foto do material devolvido' : 'Assinatura coletada'}</strong>
           <small>{formatDateTime(evidence.dataEvidencia) ?? 'Data não informada'}</small>
         </div>
         <span className="receipt-evidence-status">Registrada</span>
@@ -136,7 +136,7 @@ function EvidencePreview({ evidence }) {
         <img
           className={isPhoto ? 'receipt-return-photo' : 'receipt-signature'}
           src={imageUrl}
-          alt={isPhoto ? 'Material devolvido' : `Assinatura de ${evidence.funcionario?.nome ?? 'funcionário'}`}
+          alt={isPhoto ? 'Material devolvido' : `Assinatura de ${evidence.assinante?.nome ?? 'responsável'}`}
         />
       ) : error ? (
         <p className="muted">Não foi possível carregar {isPhoto ? 'a foto do material' : 'a imagem da assinatura'}.</p>
@@ -148,8 +148,12 @@ function EvidencePreview({ evidence }) {
 
       <dl className="receipt-meta-list">
         <div>
-          <dt>Funcionário</dt>
-          <dd>{evidence.funcionario?.nome ?? 'Não informado'}</dd>
+          <dt>Encarregado</dt>
+          <dd>{evidence.encarregado?.nome ?? 'Não informado'}</dd>
+        </div>
+        <div>
+          <dt>Assinante</dt>
+          <dd>{evidence.assinante?.nome ?? 'Não aplicável'}</dd>
         </div>
         <div>
           <dt>Anexada por</dt>
@@ -270,10 +274,9 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
         <h3>Responsáveis e vínculo</h3>
         <dl className="receipt-grid">
           <div>
-            <dt>Funcionário</dt>
+            <dt>Encarregado</dt>
             <dd>
-              {receipt.funcionario?.nome ?? 'Não aplicável'}
-              {receipt.funcionario?.cargo && <small>{receipt.funcionario.cargo}</small>}
+              {receipt.encarregado?.nome ?? 'Não aplicável'}
             </dd>
           </div>
           <div>
@@ -283,6 +286,15 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
               {receipt.contrato?.descricao && <small>{receipt.contrato.descricao}</small>}
             </dd>
           </div>
+          {receipt.requisicaoId && (
+            <div className="receipt-grid-wide">
+              <dt>Requisição vinculada</dt>
+              <dd>
+                #{receipt.requisicaoId}
+                {receipt.requisicaoDescricao && <small>{receipt.requisicaoDescricao}</small>}
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Registrado por</dt>
             <dd>
@@ -474,7 +486,7 @@ export default function MovementReceiptModal({ movementId, onClose }) {
 
       {signatureOpen && receipt && (
         <SignaturePad
-          employeeName={receipt.funcionario?.nome}
+          employeeName={receipt.encarregado?.nome}
           saving={signatureSaving}
           error={signatureError}
           onConfirm={saveSignature}

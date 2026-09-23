@@ -49,6 +49,7 @@ export default function SignaturePad({
   onCancel,
   confirmLabel = 'Confirmar assinatura',
   savingLabel = 'Salvando assinatura...',
+  confirmEnabled = true,
   summary,
   children,
 }) {
@@ -153,7 +154,7 @@ export default function SignaturePad({
 
   async function confirmSignature() {
     if (submittingRef.current) return;
-    if (!canSubmitSignature(hasInk, busy)) {
+    if (!confirmEnabled || !canSubmitSignature(hasInk, busy)) {
       setCaptureError(new Error('Faça a assinatura antes de confirmar.'));
       return;
     }
@@ -241,7 +242,7 @@ export default function SignaturePad({
             className="button button-primary"
             type="button"
             onClick={confirmSignature}
-            disabled={!canSubmitSignature(hasInk, busy)}
+            disabled={!confirmEnabled || !canSubmitSignature(hasInk, busy)}
           >
             {busy ? savingLabel : confirmLabel}
           </button>
