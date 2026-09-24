@@ -8,6 +8,12 @@ export const usuarioService = {
     apiRequest('/usuarios', { method: 'POST', body: usuario }),
   createEncarregado: (usuario) =>
     apiRequest('/usuarios/encarregados', { method: 'POST', body: usuario }),
+  updateEncarregado: (id, encarregado) =>
+    apiRequest(`/usuarios/encarregados/${id}`, { method: 'PUT', body: encarregado }),
+  activateEncarregado: (id) =>
+    apiRequest(`/usuarios/encarregados/${id}/ativar`, { method: 'PATCH' }),
+  deactivateEncarregado: (id) =>
+    apiRequest(`/usuarios/encarregados/${id}/desativar`, { method: 'PATCH' }),
   update: (id, usuario) =>
     apiRequest(`/usuarios/${id}`, { method: 'PUT', body: usuario }),
   activate: (id) =>

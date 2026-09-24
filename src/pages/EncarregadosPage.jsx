@@ -22,7 +22,9 @@ export default function EncarregadosPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
   const [showForm, setShowForm] = useState(false);
+  const [editingEncarregado, setEditingEncarregado] = useState(null);
   const [success, setSuccess] = useState('');
+  const [actionError, setActionError] = useState(null);
   const loader = useCallback(() => usuarioService.listEncarregados(), []);
   const {
     data: encarregados,
@@ -47,8 +49,19 @@ export default function EncarregadosPage() {
 
   async function handleCreated() {
     setShowForm(false);
+    setEditingEncarregado(null);
     setSuccess('Encarregado cadastrado com sucesso.');
     await reload().catch(() => {});
+  }
+
+  async function toggleEncarregado(encarregado) {
+    setActionError(null);
+    try {
+      if (encarregado.ativo) await usuarioService.deactivateEncarregado(encarregado.id);
+      else await usuarioService.activateEncarregado(encarregado.id);
+      setSuccess(`Encarregado ${encarregado.ativo ? 'desativado' : 'ativado'} com sucesso.`);
+      await reload();
+    } catch (requestError) { setActionError(requestError); }
   }
 
   return (
@@ -65,6 +78,7 @@ export default function EncarregadosPage() {
             className="button button-primary"
             onClick={() => {
               setSuccess('');
+              setEditingEncarregado(null);
               setShowForm(true);
             }}
           >
@@ -77,10 +91,14 @@ export default function EncarregadosPage() {
 
       {showForm && canCreate && (
         <EncarregadoForm
-          onCancel={() => setShowForm(false)}
+          encarregado={editingEncarregado}
+          onCancel={() => { setShowForm(false); setEditingEncarregado(null); }}
           onCreated={handleCreated}
+          onUpdated={async () => { setShowForm(false); setEditingEncarregado(null); setSuccess('Encarregado atualizado com sucesso.'); await reload().catch(() => {}); }}
         />
       )}
+
+      <ErrorMessage error={actionError} />
 
       <div className="list-controls">
         <label className="search-field">
@@ -151,6 +169,7 @@ export default function EncarregadosPage() {
                     ? ` · ${formatCelular(encarregado.celular)}`
                     : ''}
                 </p>
+                {canCreate && <div className="resource-actions"><button className="button button-secondary" type="button" onClick={() => { setEditingEncarregado(encarregado); setShowForm(true); }}>Editar</button><button className={`text-button ${encarregado.ativo ? 'danger' : ''}`} type="button" onClick={() => toggleEncarregado(encarregado)}>{encarregado.ativo ? 'Desativar' : 'Ativar'}</button></div>}
               </article>
             ))}
           </div>
@@ -163,6 +182,7 @@ export default function EncarregadosPage() {
                   <th>Usuário</th>
                   <th>Celular</th>
                   {hasStatus && <th>Status</th>}
+                  {canCreate && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -183,6 +203,7 @@ export default function EncarregadosPage() {
                         )}
                       </td>
                     )}
+                    {canCreate && <td><div className="table-actions"><button className="text-link" type="button" onClick={() => { setEditingEncarregado(encarregado); setShowForm(true); }}>Editar</button><button className={`text-button ${encarregado.ativo ? 'danger' : ''}`} type="button" onClick={() => toggleEncarregado(encarregado)}>{encarregado.ativo ? 'Desativar' : 'Ativar'}</button></div></td>}
                   </tr>
                 ))}
               </tbody>

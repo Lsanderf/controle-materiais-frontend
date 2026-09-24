@@ -12,8 +12,12 @@ const emptyForm = {
   password: '',
 };
 
-export default function EncarregadoForm({ onCreated, onCancel }) {
-  const [form, setForm] = useState(emptyForm);
+export default function EncarregadoForm({ encarregado, onCreated, onUpdated, onCancel }) {
+  const editing = Boolean(encarregado);
+  const [form, setForm] = useState(() => editing ? {
+    ...emptyForm,
+    username: encarregado.username,
+  } : emptyForm);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
 
@@ -27,9 +31,17 @@ export default function EncarregadoForm({ onCreated, onCancel }) {
     setError(null);
 
     try {
-      await usuarioService.createEncarregado(buildEncarregadoPayload(form));
+      if (editing) {
+        await usuarioService.updateEncarregado(encarregado.id, {
+          username: form.username.trim(),
+          novaSenha: form.password.trim() || null,
+        });
+        onUpdated?.();
+      } else {
+        await usuarioService.createEncarregado(buildEncarregadoPayload(form));
+        onCreated?.();
+      }
       setForm(emptyForm);
-      onCreated?.();
     } catch (requestError) {
       setError(requestError);
     } finally {
@@ -41,14 +53,14 @@ export default function EncarregadoForm({ onCreated, onCancel }) {
     <form className="content-card form-card" onSubmit={handleSubmit}>
       <div className="section-heading">
         <div>
-          <h2>Novo encarregado</h2>
-          <p>Cadastre os dados de identificação e acesso do encarregado.</p>
+          <h2>{editing ? 'Editar encarregado' : 'Novo encarregado'}</h2>
+          <p>{editing ? 'Atualize os dados de acesso do encarregado.' : 'Cadastre os dados de identificação e acesso do encarregado.'}</p>
         </div>
       </div>
 
       <ErrorMessage error={error} />
 
-      <div className="form-grid">
+      {!editing && <div className="form-grid">
         <label className="field field-wide">
           <span>Nome</span>
           <input
@@ -117,11 +129,22 @@ export default function EncarregadoForm({ onCreated, onCancel }) {
             placeholder="Mínimo de 8 caracteres"
           />
         </label>
-      </div>
+      </div>}
 
-      <p className="muted">
+      {editing && <div className="form-grid">
+        <label className="field">
+          <span>Usuário</span>
+          <input value={form.username} onChange={(event) => change('username', event.target.value)} required minLength="3" maxLength="100" autoComplete="off" />
+        </label>
+        <label className="field">
+          <span>Nova senha (opcional)</span>
+          <input type="password" value={form.password} onChange={(event) => change('password', event.target.value)} minLength="8" maxLength="100" autoComplete="new-password" />
+        </label>
+      </div>}
+
+      {!editing && <p className="muted">
         O perfil de Encarregado será definido automaticamente pelo servidor.
-      </p>
+      </p>}
 
       <div className="form-actions">
         <button
@@ -137,7 +160,7 @@ export default function EncarregadoForm({ onCreated, onCancel }) {
           className="button button-primary"
           disabled={saving}
         >
-          {saving ? 'Salvando...' : 'Cadastrar encarregado'}
+          {saving ? 'Salvando...' : editing ? 'Salvar alterações' : 'Cadastrar encarregado'}
         </button>
       </div>
     </form>

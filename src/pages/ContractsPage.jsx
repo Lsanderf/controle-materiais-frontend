@@ -20,7 +20,7 @@ import { filterBySearchAndStatus } from '../utils/listFilters';
 
 export default function ContractsPage() {
   const { role } = useAuth();
-  const canManageContracts = role === 'ADMIN';
+  const canManageContracts = ['ADMIN', 'GERENTE'].includes(role);
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
@@ -76,7 +76,7 @@ export default function ContractsPage() {
         <div>
           <span className="eyebrow">Cadastros</span>
           <h1>Contratos</h1>
-          <p>Gerencie os contratos usados nas movimentações.</p>
+          <p>Gerencie os contratos usados nas requisições e movimentações.</p>
         </div>
         {canManageContracts && (
           <Link className="button button-primary" to="/contratos/novo">

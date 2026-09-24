@@ -15,9 +15,9 @@ test('acesso à listagem respeita os quatro perfis suportados', () => {
   assert.equal(canAccessEncarregados('ENCARREGADO'), false);
 });
 
-test('somente ADMIN cria encarregado; GERENTE e OPERADOR possuem somente leitura', () => {
+test('ADMIN e GERENTE criam encarregado; OPERADOR permanece somente leitura', () => {
   assert.equal(canCreateEncarregado('ADMIN'), true);
-  assert.equal(canCreateEncarregado('GERENTE'), false);
+  assert.equal(canCreateEncarregado('GERENTE'), true);
   assert.equal(canCreateEncarregado('OPERADOR'), false);
   assert.equal(canCreateEncarregado('ENCARREGADO'), false);
 });

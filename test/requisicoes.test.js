@@ -17,5 +17,10 @@ test('telas usam endpoint próprio de requisições e não movimentações', () 
   assert.match(service, /\/visualizar/);
   assert.match(service, /\/concluir/);
   assert.doesNotMatch(page, /movimentacaoService/);
+  assert.doesNotMatch(page, /materialService/);
+  assert.doesNotMatch(page, /materialId/);
+  assert.match(page, /\+ Criar contrato/);
+  assert.match(page, /\+ Criar material/);
+  assert.match(page, /descricao/);
   assert.match(movementForm, /\['ADMIN', 'OPERADOR'\]/);
 });

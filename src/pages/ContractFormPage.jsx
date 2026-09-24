@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ErrorMessage, Loading, SuccessMessage } from '../components/Feedback';
 import { contratoService } from '../services/contratoService';
 
 export default function ContractFormPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
+  const returnPath = location.state?.from ?? '/contratos';
   const editing = Boolean(id);
   const [form, setForm] = useState({
     nome: '',
@@ -52,7 +54,7 @@ export default function ContractFormPage() {
         setSuccess('Contrato atualizado com sucesso.');
       } else {
         await contratoService.create(payload);
-        navigate('/contratos', {
+        navigate(returnPath, {
           replace: true,
           state: { success: 'Contrato cadastrado com sucesso.' },
         });
@@ -121,7 +123,7 @@ export default function ContractFormPage() {
         )}
 
         <div className="form-actions">
-          <Link className="button button-secondary" to="/contratos">
+          <Link className="button button-secondary" to={returnPath}>
             Cancelar
           </Link>
           <button className="button button-primary" type="submit" disabled={saving}>

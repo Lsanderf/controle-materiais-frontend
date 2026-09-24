@@ -82,7 +82,7 @@ export default function App() {
             <Route path="/contratos" element={<ContractsPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute roles={['ADMIN']} />}>
+          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE']} />}>
             <Route path="/contratos/novo" element={<ContractFormPage />} />
             <Route
               path="/contratos/:id/editar"
