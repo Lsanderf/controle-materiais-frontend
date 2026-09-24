@@ -7,7 +7,7 @@ export const ENCARREGADOS_ACCESS_ROLES = [
   'GERENTE',
 ];
 
-export const ENCARREGADOS_CREATE_ROLES = ['ADMIN', 'GERENTE'];
+export const ENCARREGADOS_CREATE_ROLES = ['ADMIN'];
 
 export function canAccessEncarregados(role) {
   return ENCARREGADOS_ACCESS_ROLES.includes(role);

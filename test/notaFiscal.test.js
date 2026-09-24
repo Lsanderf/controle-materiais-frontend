@@ -80,8 +80,8 @@ test('criacao de NF monta payload com itens no formato do backend', () => {
     cnpjFornecedor: '11.222.333/0001-81',
     dataEmissao: todayIsoDate(),
     itens: [
-      { materialId: 7, quantidade: 3, valorUnitario: '12.50' },
-      { materialId: 8, quantidade: 2, valorUnitario: '1.99' },
+      { materialId: 7, quantidade: 3, valorUnitario: 12.5 },
+      { materialId: 8, quantidade: 2, valorUnitario: 1.99 },
     ],
   });
 });

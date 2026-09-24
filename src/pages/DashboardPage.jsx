@@ -7,12 +7,14 @@ import { contratoService } from '../services/contratoService';
 import { usuarioService } from '../services/usuarioService';
 import { materialService } from '../services/materialService';
 import { movimentacaoService } from '../services/movimentacaoService';
+import { requisicaoService } from '../services/requisicaoService';
 import { sortMovementsNewestFirst } from '../utils/formatters';
 
 export default function DashboardPage() {
   const { auth, hasAnyRole } = useAuth();
   const canAccessOperationalData = hasAnyRole('ADMIN', 'OPERADOR');
   const canAccessManagementData = hasAnyRole('ADMIN', 'OPERADOR', 'GERENTE');
+  const isEncarregado = hasAnyRole('ENCARREGADO');
   const loader = useCallback(
     () => {
       if (canAccessOperationalData) {
@@ -31,9 +33,11 @@ export default function DashboardPage() {
         ]);
       }
 
+      if (isEncarregado) return requisicaoService.list();
+
       return Promise.resolve([]);
     },
-    [canAccessManagementData, canAccessOperationalData],
+    [canAccessManagementData, canAccessOperationalData, isEncarregado],
   );
   const { data, loading, error, reload } = useResource(loader, [loader]);
 
@@ -45,6 +49,10 @@ export default function DashboardPage() {
         : [];
   const latestMovements = sortMovementsNewestFirst(movements).slice(0, 5);
   const canMove = canAccessOperationalData;
+  const requisicoesRecebidas = isEncarregado ? data ?? [] : [];
+  const requisicoesPendentes = requisicoesRecebidas.filter(
+    (requisicao) => requisicao.status === 'PENDENTE',
+  );
 
   return (
     <div className="page-stack">
@@ -101,6 +109,26 @@ export default function DashboardPage() {
             <span aria-hidden="true">→</span>
           </Link>
         )}
+        {hasAnyRole('GERENTE') && (
+          <Link className="action-card action-materials" to="/requisicoes">
+            <span className="action-icon">✉</span>
+            <span>
+              <strong>Nova requisição</strong>
+              <small>Solicite materiais a um encarregado</small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
+        {isEncarregado && (
+          <Link className="action-card action-materials" to="/requisicoes">
+            <span className="action-icon">✉</span>
+            <span>
+              <strong>Requisições recebidas</strong>
+              <small>{requisicoesPendentes.length} pendentes</small>
+            </span>
+            <span aria-hidden="true">→</span>
+          </Link>
+        )}
       </section>
 
       {loading ? (
@@ -114,7 +142,41 @@ export default function DashboardPage() {
         </div>
       ) : (
         <>
-          {canAccessManagementData ? (
+          {isEncarregado ? (
+            <>
+              <section className="stat-grid" aria-label="Indicadores de requisições">
+                <article className="stat-card">
+                  <span>Requisições recebidas</span>
+                  <strong>{requisicoesRecebidas.length}</strong>
+                  <small>{requisicoesPendentes.length} pendentes</small>
+                </article>
+              </section>
+              <section className="content-card">
+                <div className="section-heading">
+                  <div>
+                    <h2>Requisições recebidas</h2>
+                    <p>Abra uma solicitação para visualizar seus materiais e concluí-la.</p>
+                  </div>
+                  <Link className="text-link" to="/requisicoes">Ver todas</Link>
+                </div>
+                {requisicoesRecebidas.length === 0 ? (
+                  <p className="muted">Nenhuma requisição recebida.</p>
+                ) : (
+                  <div className="recent-list">
+                    {requisicoesRecebidas.slice(0, 5).map((requisicao) => (
+                      <Link className="recent-item requisicao-dashboard-item" to={`/requisicoes/${requisicao.id}`} key={requisicao.id}>
+                        <span className="badge">{requisicao.tipo === 'RETIRADA' ? 'Retirada' : 'Devolução'}</span>
+                        <div>
+                          <strong>{requisicao.gerenteSolicitante.nome}</strong>
+                          <span>{requisicao.contrato.nome} · {requisicao.status}</span>
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </>
+          ) : canAccessManagementData ? (
             <>
               <section className="stat-grid" aria-label="Indicadores">
                 {canAccessOperationalData && (

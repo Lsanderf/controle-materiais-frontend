@@ -8,6 +8,7 @@ const mainItems = [
   { to: '/dashboard', label: 'Início', icon: '⌂' },
   { to: '/materiais', label: 'Materiais', icon: '▣', roles: ['ADMIN', 'OPERADOR'] },
   { to: '/movimentacoes', label: 'Movimentar', icon: '⇄', end: true, roles: ['ADMIN', 'OPERADOR'] },
+  { to: '/requisicoes', label: 'Requisições', icon: '✉', roles: ['ADMIN', 'GERENTE', 'ENCARREGADO'] },
   { to: '/notas-fiscais', label: 'Notas fiscais', icon: 'NF', roles: ['ADMIN', 'OPERADOR'] },
   { to: '/movimentacoes/historico', label: 'Histórico', icon: '◷', roles: ['ADMIN', 'OPERADOR'] },
 ];
@@ -39,6 +40,7 @@ export default function AppLayout() {
     '/encarregados': 'Encarregados',
     '/contratos': 'Contratos',
     '/movimentacoes': 'Movimentações',
+    '/requisicoes': 'Requisições',
     '/movimentacoes/retirada': 'Registrar retirada',
     '/movimentacoes/devolucao': 'Registrar devolução',
     '/movimentacoes/historico': 'Histórico',

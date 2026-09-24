@@ -48,7 +48,7 @@ test('FormData envia o PNG no campo arquivo', () => {
   assert.equal(uploadedFile.type, SIGNATURE_CONTENT_TYPE);
 });
 
-test('RETIRADA e DEVOLUCAO permitem assinatura para ADMIN e OPERADOR', () => {
+test('RETIRADA e DEVOLUCAO permitem assinatura avulsa para ADMIN e OPERADOR', () => {
   assert.equal(canAddSignature(receipt('RETIRADA'), 'ADMIN'), true);
   assert.equal(canAddSignature(receipt('RETIRADA'), 'OPERADOR'), true);
   assert.equal(canAddSignature(receipt('DEVOLUCAO'), 'ADMIN'), true);
@@ -64,7 +64,7 @@ test('assinatura existente não pode ser substituída pela interface', () => {
   assert.equal(canAddSignature(signedReceipt, 'ADMIN'), false);
 });
 
-test('GERENTE e ENCARREGADO não recebem opção de adicionar assinatura', () => {
+test('GERENTE e ENCARREGADO não recebem opção de adicionar assinatura avulsa', () => {
   for (const role of ['GERENTE', 'ENCARREGADO']) {
     assert.equal(canAddSignature(receipt('RETIRADA'), role), false);
     assert.equal(canAddSignature(receipt('DEVOLUCAO'), role), false);

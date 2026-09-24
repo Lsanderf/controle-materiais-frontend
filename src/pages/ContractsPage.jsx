@@ -20,7 +20,7 @@ import { filterBySearchAndStatus } from '../utils/listFilters';
 
 export default function ContractsPage() {
   const { role } = useAuth();
-  const canManageContracts = ['ADMIN', 'GERENTE'].includes(role);
+  const canManageContracts = role === 'ADMIN';
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');

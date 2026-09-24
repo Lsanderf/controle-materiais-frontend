@@ -17,6 +17,8 @@ import NotaFiscalDetailPage from './pages/NotaFiscalDetailPage';
 import UsersPage from './pages/UsersPage';
 import UserFormPage from './pages/UserFormPage';
 import MorePage from './pages/MorePage';
+import RequisicoesPage from './pages/RequisicoesPage';
+import RequisicaoDetailPage from './pages/RequisicaoDetailPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { ENCARREGADOS_ACCESS_ROLES } from './utils/encarregados';
 import './App.css';
@@ -39,6 +41,16 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
             <Route path="/materiais" element={<MaterialsPage />} />
             <Route path="/materiais/novo" element={<MaterialFormPage />} />
+            <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
+            <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
+            <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
+            <Route
+              path="/notas-fiscais/:id/editar"
+              element={<NotaFiscalFormPage />}
+            />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
             <Route path="/movimentacoes" element={<MovementsPage />} />
             <Route path="/movimentacoes/historico" element={<HistoryPage />} />
             <Route
@@ -49,13 +61,11 @@ export default function App() {
               path="/movimentacoes/devolucao"
               element={<MovementFormPage key="DEVOLUCAO" type="DEVOLUCAO" />}
             />
-            <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
-            <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
-            <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
-            <Route
-              path="/notas-fiscais/:id/editar"
-              element={<NotaFiscalFormPage />}
-            />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE', 'ENCARREGADO']} />}>
+            <Route path="/requisicoes" element={<RequisicoesPage />} />
+            <Route path="/requisicoes/:id" element={<RequisicaoDetailPage />} />
           </Route>
 
           <Route element={<ProtectedRoute roles={['ADMIN']} />}>
@@ -72,7 +82,7 @@ export default function App() {
             <Route path="/contratos" element={<ContractsPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE']} />}>
+          <Route element={<ProtectedRoute roles={['ADMIN']} />}>
             <Route path="/contratos/novo" element={<ContractFormPage />} />
             <Route
               path="/contratos/:id/editar"

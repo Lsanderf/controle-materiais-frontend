@@ -31,6 +31,14 @@ export default function MorePage() {
           icon: '▤',
         }]
       : []),
+    ...(['ADMIN', 'GERENTE', 'ENCARREGADO'].includes(role)
+      ? [{
+          to: '/requisicoes',
+          title: 'Requisições',
+          description: role === 'ENCARREGADO' ? 'Solicitações recebidas para você' : 'Solicitações enviadas aos encarregados',
+          icon: '✉',
+        }]
+      : []),
     ...(['ADMIN', 'OPERADOR'].includes(role)
       ? [{
           to: '/movimentacoes/historico',
