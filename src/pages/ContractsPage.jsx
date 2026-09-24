@@ -20,6 +20,7 @@ import { filterBySearchAndStatus } from '../utils/listFilters';
 
 export default function ContractsPage() {
   const { role } = useAuth();
+  const canManageContracts = ['ADMIN', 'GERENTE'].includes(role);
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('TODOS');
@@ -77,7 +78,7 @@ export default function ContractsPage() {
           <h1>Contratos</h1>
           <p>Gerencie os contratos usados nas movimentações.</p>
         </div>
-        {role === 'ADMIN' && (
+        {canManageContracts && (
           <Link className="button button-primary" to="/contratos/novo">
             + Novo contrato
           </Link>
@@ -141,7 +142,7 @@ export default function ContractsPage() {
                 </div>
                 <p>{contract.descricao}</p>
                 <MobileInactivationDetails record={contract} />
-                {role === 'ADMIN' && (
+                {canManageContracts && (
                   <div className="resource-actions">
                     <Link
                       className="button button-secondary"
@@ -170,7 +171,7 @@ export default function ContractsPage() {
                   <th>Descrição</th>
                   <th>Status</th>
                   <th>Inativado em</th>
-                  {role === 'ADMIN' && <th>Ações</th>}
+                  {canManageContracts && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -187,7 +188,7 @@ export default function ContractsPage() {
                     <td>
                       <InactivationTableValue record={contract} />
                     </td>
-                    {role === 'ADMIN' && (
+                    {canManageContracts && (
                       <td>
                         <div className="table-actions">
                           <Link

@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { ErrorMessage, Loading } from '../components/Feedback';
 import { usuarioService } from '../services/usuarioService';
-import { roleLabel } from '../utils/formatters';
+import { formatCelular, formatCpf, roleLabel } from '../utils/formatters';
 import {
   buildUserPayload,
   passwordsMatch,
+  registrationValidationError,
   USER_ROLES,
 } from '../utils/userForm';
 
@@ -21,6 +22,9 @@ export default function UserFormPage() {
   const navigate = useNavigate();
   const editing = Boolean(id);
   const [form, setForm] = useState({
+    nome: '',
+    cpf: '',
+    celular: '',
     username: '',
     role: 'OPERADOR',
     password: '',
@@ -57,6 +61,14 @@ export default function UserFormPage() {
     if (!passwordsMatch(form)) {
       setError({ message: 'A senha e a confirmação precisam ser iguais.' });
       return;
+    }
+
+    if (!editing) {
+      const validationError = registrationValidationError(form);
+      if (validationError) {
+        setError({ message: validationError });
+        return;
+      }
     }
 
     setSaving(true);
@@ -99,6 +111,55 @@ export default function UserFormPage() {
 
       <form className="content-card form-card" onSubmit={handleSubmit}>
         <ErrorMessage error={error} />
+
+        {!editing && (
+          <div className="form-grid">
+            <label className="field field-wide">
+              <span>Nome</span>
+              <input
+                value={form.nome}
+                onChange={(event) => change('nome', event.target.value)}
+                required
+                minLength="2"
+                maxLength="150"
+                autoComplete="name"
+                placeholder="Nome completo"
+              />
+            </label>
+
+            <label className="field">
+              <span>CPF</span>
+              <input
+                inputMode="numeric"
+                autoComplete="off"
+                value={form.cpf}
+                onChange={(event) => change('cpf', formatCpf(event.target.value))}
+                required
+                pattern="\d{3}\.\d{3}\.\d{3}-\d{2}"
+                maxLength="14"
+                placeholder="000.000.000-00"
+              />
+              <small>Será enviado somente com números.</small>
+            </label>
+
+            <label className="field">
+              <span>Celular</span>
+              <input
+                inputMode="numeric"
+                autoComplete="tel"
+                value={form.celular}
+                onChange={(event) =>
+                  change('celular', formatCelular(event.target.value))
+                }
+                required
+                pattern="\(\d{2}\) \d{5}-\d{4}"
+                maxLength="15"
+                placeholder="(00) 00000-0000"
+              />
+              <small>Será enviado somente com números.</small>
+            </label>
+          </div>
+        )}
 
         <label className="field">
           <span>Nome de usuário</span>

@@ -30,12 +30,6 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route index element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/materiais" element={<MaterialsPage />} />
-          <Route path="/contratos" element={<ContractsPage />} />
-          <Route path="/movimentacoes" element={<MovementsPage />} />
-          <Route path="/movimentacoes/historico" element={<HistoryPage />} />
-          <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
-          <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
           <Route path="/mais" element={<MorePage />} />
 
           <Route element={<ProtectedRoute roles={ENCARREGADOS_ACCESS_ROLES} />}>
@@ -43,7 +37,10 @@ export default function App() {
           </Route>
 
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
+            <Route path="/materiais" element={<MaterialsPage />} />
             <Route path="/materiais/novo" element={<MaterialFormPage />} />
+            <Route path="/movimentacoes" element={<MovementsPage />} />
+            <Route path="/movimentacoes/historico" element={<HistoryPage />} />
             <Route
               path="/movimentacoes/retirada"
               element={<MovementFormPage key="RETIRADA" type="RETIRADA" />}
@@ -52,6 +49,8 @@ export default function App() {
               path="/movimentacoes/devolucao"
               element={<MovementFormPage key="DEVOLUCAO" type="DEVOLUCAO" />}
             />
+            <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
+            <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
             <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
             <Route
               path="/notas-fiscais/:id/editar"
@@ -64,14 +63,21 @@ export default function App() {
               path="/materiais/:id/editar"
               element={<MaterialFormPage />}
             />
+            <Route path="/usuarios" element={<UsersPage />} />
+            <Route path="/usuarios/novo" element={<UserFormPage />} />
+            <Route path="/usuarios/:id/editar" element={<UserFormPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR', 'GERENTE']} />}>
+            <Route path="/contratos" element={<ContractsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE']} />}>
             <Route path="/contratos/novo" element={<ContractFormPage />} />
             <Route
               path="/contratos/:id/editar"
               element={<ContractFormPage />}
             />
-            <Route path="/usuarios" element={<UsersPage />} />
-            <Route path="/usuarios/novo" element={<UserFormPage />} />
-            <Route path="/usuarios/:id/editar" element={<UserFormPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

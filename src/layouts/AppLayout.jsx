@@ -6,10 +6,10 @@ import telminasIcon from '../assets/telminas-icon.png';
 
 const mainItems = [
   { to: '/dashboard', label: 'Início', icon: '⌂' },
-  { to: '/materiais', label: 'Materiais', icon: '▣' },
-  { to: '/movimentacoes', label: 'Movimentar', icon: '⇄', end: true },
-  { to: '/notas-fiscais', label: 'Notas fiscais', icon: 'NF' },
-  { to: '/movimentacoes/historico', label: 'Histórico', icon: '◷' },
+  { to: '/materiais', label: 'Materiais', icon: '▣', roles: ['ADMIN', 'OPERADOR'] },
+  { to: '/movimentacoes', label: 'Movimentar', icon: '⇄', end: true, roles: ['ADMIN', 'OPERADOR'] },
+  { to: '/notas-fiscais', label: 'Notas fiscais', icon: 'NF', roles: ['ADMIN', 'OPERADOR'] },
+  { to: '/movimentacoes/historico', label: 'Histórico', icon: '◷', roles: ['ADMIN', 'OPERADOR'] },
 ];
 
 function NavigationLink({ item, onClick }) {
@@ -59,6 +59,10 @@ export default function AppLayout() {
     (location.pathname.includes('/editar')
       ? 'Editar cadastro'
       : 'Novo cadastro');
+  const visibleMainItems = mainItems.filter(
+    (item) => !item.roles || item.roles.includes(role),
+  );
+  const canAccessContracts = ['ADMIN', 'OPERADOR', 'GERENTE'].includes(role);
 
   function handleLogout() {
     logout();
@@ -84,7 +88,7 @@ export default function AppLayout() {
         </div>
 
         <nav className="sidebar-nav" aria-label="Navegação principal">
-          {mainItems.map((item) => (
+          {visibleMainItems.map((item) => (
             <NavigationLink item={item} key={item.to} />
           ))}
 
@@ -100,13 +104,15 @@ export default function AppLayout() {
             />
           )}
 
-          <NavigationLink
-            item={{
-              to: '/contratos',
-              label: 'Contratos',
-              icon: '▤',
-            }}
-          />
+          {canAccessContracts && (
+            <NavigationLink
+              item={{
+                to: '/contratos',
+                label: 'Contratos',
+                icon: '▤',
+              }}
+            />
+          )}
 
           {role === 'ADMIN' && (
             <NavigationLink
@@ -158,7 +164,7 @@ export default function AppLayout() {
         </main>
 
         <nav className="bottom-nav" aria-label="Navegação móvel">
-          {mainItems.slice(0, 3).map((item) => (
+          {visibleMainItems.slice(0, 3).map((item) => (
             <NavigationLink item={item} key={item.to} />
           ))}
 

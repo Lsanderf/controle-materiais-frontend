@@ -23,24 +23,30 @@ export default function MorePage() {
           },
         ]
       : []),
-    {
-      to: '/contratos',
-      title: 'Contratos',
-      description: 'Contratos ativos e inativos',
-      icon: '▤',
-    },
-    {
-      to: '/movimentacoes/historico',
-      title: 'Histórico',
-      description: 'Todas as entradas, retiradas e devoluções',
-      icon: '◷',
-    },
-    {
-      to: '/notas-fiscais',
-      title: 'Notas fiscais',
-      description: 'Recebimento de materiais por NF',
-      icon: 'NF',
-    },
+    ...(['ADMIN', 'OPERADOR', 'GERENTE'].includes(role)
+      ? [{
+          to: '/contratos',
+          title: 'Contratos',
+          description: 'Contratos ativos e inativos',
+          icon: '▤',
+        }]
+      : []),
+    ...(['ADMIN', 'OPERADOR'].includes(role)
+      ? [{
+          to: '/movimentacoes/historico',
+          title: 'Histórico',
+          description: 'Todas as entradas, retiradas e devoluções',
+          icon: '◷',
+        }]
+      : []),
+    ...(['ADMIN', 'OPERADOR'].includes(role)
+      ? [{
+          to: '/notas-fiscais',
+          title: 'Notas fiscais',
+          description: 'Recebimento de materiais por NF',
+          icon: 'NF',
+        }]
+      : []),
   ];
 
   if (role === 'ADMIN') {
