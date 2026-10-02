@@ -19,6 +19,7 @@ export const movimentacaoService = {
       body: { justificativa },
     }),
   byFuncionario: (id) => apiRequest(`/movimentacoes/funcionario/${id}`),
+  byEncarregado: (id) => apiRequest(`/movimentacoes/encarregado/${id}`),
   byContrato: (id) => apiRequest(`/movimentacoes/contrato/${id}`),
   byMaterial: (id) => apiRequest(`/movimentacoes/material/${id}`),
   create: (movement, signature, photo) =>

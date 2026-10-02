@@ -3,6 +3,7 @@ import { apiRequest } from './api';
 export const usuarioService = {
   list: () => apiRequest('/usuarios'),
   listEncarregados: () => apiRequest('/usuarios/encarregados'),
+  listGerentes: () => apiRequest('/usuarios/gerentes'),
   get: (id) => apiRequest(`/usuarios/${id}`),
   create: (usuario) =>
     apiRequest('/usuarios', { method: 'POST', body: usuario }),

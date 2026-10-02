@@ -88,7 +88,7 @@ async function fillInvoice(page) {
   await page.getByLabel('CNPJ do fornecedor').fill(INVOICE.cnpjFornecedor);
   await page.getByLabel('Data de emissao').fill(INVOICE.dataEmissao);
   await rows(page).first().getByLabel('Quantidade', { exact: true }).fill('12');
-  await rows(page).first().getByLabel('Valor unitario').fill('9.50');
+  await rows(page).first().getByLabel('Valor unitário').fill('9.50');
 }
 
 async function snapshot(page) {
@@ -113,6 +113,21 @@ async function createMaterial(page, index, nome, descricao = 'Material cadastrad
   await dialog(page).getByRole('button', { name: 'Cadastrar material' }).click();
   await expect(dialog(page)).toHaveCount(0);
 }
+
+test('cadastro de material exibe confirmação superior com check e expiração automática', async ({ page }) => {
+  const api = await setup(page);
+  await page.goto('/notas-fiscais/nova');
+  await createMaterial(page, 0, 'Material com feedback');
+
+  const feedback = page.getByRole('status').filter({
+    hasText: 'Material adicionado com sucesso',
+  });
+  await expect(feedback).toBeVisible();
+  await expect(feedback.locator('.success-message-icon')).toHaveText('✓');
+  expect((await feedback.boundingBox()).y).toBeLessThanOrEqual(24);
+  expect(materialPosts(api)).toHaveLength(1);
+  await expect(feedback).toHaveCount(0, { timeout: 4_000 });
+});
 
 test('abrir, cancelar e usar Escape preserva dados, associações, DOM e rota da NF', async ({ page }) => {
   const api = await setup(page);
@@ -147,7 +162,7 @@ test('primeiro material pode ser criado com lista vazia e NF manual continua sal
   await createMaterial(page, 0, '  Cabo manual  ', '  Descrição do cabo  ');
   await expect(rows(page).first().getByRole('combobox')).toHaveValue('100');
   await expect(rows(page).first()).toContainText('Estoque atual: 0 un.');
-  await expect(page.getByText('Material criado e associado ao item.', { exact: true })).toBeVisible();
+  await expect(page.getByText('Material adicionado com sucesso', { exact: true })).toBeVisible();
   expect(materialPosts(api)[0]).toMatchObject({
     authorization: 'Bearer test-token', body: { nome: 'Cabo manual', descricao: 'Descrição do cabo' },
   });
@@ -155,7 +170,7 @@ test('primeiro material pode ser criado com lista vazia e NF manual continua sal
   expect(writes(api)).toHaveLength(1);
   await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
-  expect(api.draft.itens).toEqual([{ materialId: 100, quantidade: 12, valorUnitario: '9.50' }]);
+  expect(api.draft.itens).toEqual([{ materialId: 100, quantidade: 12, valorUnitario: 9.5 }]);
   expect(api.draft.status).toBe('RASCUNHO');
   expect(api.materials[0].quantidadeEstoque).toBe(0);
   expect(writes(api).some((call) => call.path.includes('confirmar') || call.path.includes('movimentacoes'))).toBe(false);
@@ -199,8 +214,8 @@ test('dois produtos XML criam materiais distintos, sem levar quantidade ao cadas
   await page.getByRole('button', { name: 'Criar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
   expect(api.draft.itens).toEqual([
-    { materialId: 102, quantidade: 120, valorUnitario: '2.5' },
-    { materialId: 101, quantidade: 15, valorUnitario: '3' },
+    { materialId: 102, quantidade: 120, valorUnitario: 2.5 },
+    { materialId: 101, quantidade: 15, valorUnitario: 3 },
   ]);
 });
 
@@ -238,7 +253,7 @@ test('erro pode ser corrigido e reenviado sem perder a associação de origem', 
   await expect(rows(page).nth(0).getByRole('combobox')).toHaveValue('');
 });
 
-test('requisição em andamento bloqueia cancelamento, Escape e envio repetido', async ({ page }) => {
+test('requisição em andamento bloqueia cancelamento, Escape e cliques rápidos repetidos', async ({ page }) => {
   const api = await setup(page);
   let finishCreation;
   api.materialGate = new Promise((resolve) => { finishCreation = resolve; });
@@ -246,7 +261,10 @@ test('requisição em andamento bloqueia cancelamento, Escape e envio repetido',
   await importXml(page);
   await createButton(page, 1).click();
   try {
-    await dialog(page).getByRole('button', { name: 'Cadastrar material' }).click();
+    await dialog(page).getByRole('button', { name: 'Cadastrar material' }).evaluate((button) => {
+      button.click();
+      button.click();
+    });
     await expect.poll(() => materialPosts(api).length).toBe(1);
     await expect(dialog(page).getByRole('button', { name: 'Cancelar', exact: true })).toBeDisabled();
     await expect(dialog(page).getByRole('button', { name: 'Salvando...' })).toBeDisabled();
@@ -282,15 +300,15 @@ test('edição de rascunho preserva alterações ao criar material e salva com P
   await page.getByLabel('Numero', { exact: true }).fill('Alterado');
   await page.getByRole('button', { name: '+ Adicionar item' }).click();
   await rows(page).nth(1).getByLabel('Quantidade', { exact: true }).fill('2');
-  await rows(page).nth(1).getByLabel('Valor unitario').fill('4');
+  await rows(page).nth(1).getByLabel('Valor unitário').fill('4');
   await createMaterial(page, 1, 'Material da edição');
   await expect(page.getByLabel('Numero', { exact: true })).toHaveValue('Alterado');
   await expect(rows(page).first().getByRole('combobox')).toHaveValue('7');
   await page.getByRole('button', { name: 'Salvar rascunho', exact: true }).click();
   await expect(page).toHaveURL(/\/notas-fiscais\/900$/);
   expect(api.calls.find((call) => call.method === 'PUT')?.body.itens).toEqual([
-    { materialId: 7, quantidade: 3, valorUnitario: '2.00' },
-    { materialId: 101, quantidade: 2, valorUnitario: '4' },
+    { materialId: 7, quantidade: 3, valorUnitario: 2 },
+    { materialId: 101, quantidade: 2, valorUnitario: 4 },
   ]);
 });
 
@@ -349,30 +367,28 @@ test('OPERADOR pode cadastrar pela lista de materiais, mas não editar nem o pr�
   expect(api.materials[0]).toEqual(EXISTING_MATERIAL);
 });
 
-test('CONSULTA pode listar materiais, mas não cadastrar ou editar', async ({ page }) => {
-  const api = await setup(page, { role: 'CONSULTA' });
-  await page.goto('/materiais');
-  await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: '+ Novo material', exact: true })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
-  for (const path of ['/materiais/novo', '/materiais/7/editar']) {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole('button', { name: 'Cadastrar material' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
-  }
-  expect(writes(api)).toEqual([]);
-});
+for (const role of ['GERENTE', 'ENCARREGADO']) {
+  test(`${role} permanece sem acesso à lista, cadastro ou edição de materiais`, async ({ page }) => {
+    const api = await setup(page, { role });
+    for (const path of ['/materiais', '/materiais/novo', '/materiais/7/editar']) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/dashboard$/);
+      await expect(page.getByRole('button', { name: 'Cadastrar material' })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
+    }
+    expect(writes(api)).toEqual([]);
+  });
 
-test('CONSULTA continua sem acesso a cadastro ou edição de NF', async ({ page }) => {
-  const api = await setup(page, { role: 'CONSULTA' });
-  for (const path of ['/notas-fiscais/nova', '/notas-fiscais/900/editar']) {
-    await page.goto(path);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole('button', { name: '+ Criar material', exact: true })).toHaveCount(0);
-  }
-  expect(writes(api)).toEqual([]);
-});
+  test(`${role} continua sem acesso a cadastro ou edição de NF`, async ({ page }) => {
+    const api = await setup(page, { role });
+    for (const path of ['/notas-fiscais/nova', '/notas-fiscais/900/editar']) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/dashboard$/);
+      await expect(page.getByRole('button', { name: '+ Criar material', exact: true })).toHaveCount(0);
+    }
+    expect(writes(api)).toEqual([]);
+  });
+}
 
 test('NF confirmada continua bloqueada para edição e criação de material', async ({ page }) => {
   await setup(page, { draft: { ...INVOICE, id: 900, status: 'CONFIRMADA', itens: [] } });

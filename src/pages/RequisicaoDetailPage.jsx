@@ -90,15 +90,18 @@ export default function RequisicaoDetailPage() {
    * AGUARDANDO_CONFIRMACAO -> pode confirmar
    * CONCLUIDA -> somente consulta
    */
+  const isFaltaEstoque = requisicao.origem === 'FALTA_ESTOQUE';
   const canConcluir =
-      role === 'ENCARREGADO' &&
+      ((role === 'ENCARREGADO' && !isFaltaEstoque) ||
+        (role === 'GERENTE' && isFaltaEstoque)) &&
       ['PENDENTE', 'VISUALIZADA'].includes(requisicao.status);
 
   /*
    * Mantido o comportamento atual de cancelamento do gerente.
    */
   const canCancelar =
-      role === 'GERENTE' &&
+      ((role === 'GERENTE' && !isFaltaEstoque) ||
+        (role === 'OPERADOR' && isFaltaEstoque) || role === 'ADMIN') &&
       ['PENDENTE', 'VISUALIZADA'].includes(requisicao.status);
 
   return (
@@ -141,19 +144,14 @@ export default function RequisicaoDetailPage() {
 
         <section className="content-card requisicao-detail">
           <dl>
-            <div>
-              <dt>Gerente solicitante</dt>
-              <dd>
-                {requisicao.gerenteSolicitante.nome}
-              </dd>
-            </div>
-
-            <div>
-              <dt>Encarregado destinatário</dt>
-              <dd>
-                {requisicao.encarregadoDestinatario.nome}
-              </dd>
-            </div>
+            {isFaltaEstoque ? <>
+              <div><dt>Operador que registrou</dt><dd>{requisicao.operadorRegistrador?.nome}</dd></div>
+              <div><dt>Gerente responsável pela compra</dt><dd>{requisicao.gerenteDestinatario?.nome}</dd></div>
+              <div><dt>Encarregado relacionado</dt><dd>{requisicao.encarregadoNecessidade?.nome}</dd></div>
+            </> : <>
+              <div><dt>Gerente solicitante</dt><dd>{requisicao.gerenteSolicitante?.nome}</dd></div>
+              <div><dt>Encarregado destinatário</dt><dd>{requisicao.encarregadoDestinatario?.nome}</dd></div>
+            </>}
 
             <div>
               <dt>Contrato</dt>
@@ -191,6 +189,7 @@ export default function RequisicaoDetailPage() {
             {requisicao.itens.map((item) => (
                 <li key={item.id}>
                   {item.descricao} x{item.quantidade}
+                  {isFaltaEstoque && <small> (solicitado {item.quantidadeSolicitada}, disponível {item.quantidadeDisponivel}, faltante {item.quantidadeFaltante})</small>}
                 </li>
             ))}
           </ul>

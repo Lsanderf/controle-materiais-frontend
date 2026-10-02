@@ -81,12 +81,13 @@ test('ENCARREGADO vê requisições recebidas, contador pendente e conclui uma s
 
   await page.goto('/dashboard');
   await expect(page.getByText('Requisições recebidas', { exact: true }).first()).toBeVisible();
-  await expect(page.getByText('1 pendentes', { exact: true })).toBeVisible();
-  await page.getByRole('link', { name: /Requisições recebidas/ }).first().click();
+  const receivedRequests = page.getByRole('link', { name: /Requisições recebidas/ }).first();
+  await expect(receivedRequests.getByText('1 pendentes', { exact: true })).toBeVisible();
+  await receivedRequests.click();
   await page.getByRole('link', { name: /Ver detalhes/ }).click();
   await expect(page.getByText('Parafuso x10', { exact: true })).toBeVisible();
   await expect(page.getByText('Capacete x5', { exact: true })).toBeVisible();
   await expect(page.getByText('Luvas M x5', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Marcar como concluída', exact: true }).click();
-  await expect(page.getByText('Requisição marcada como concluída.', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Confirmar recebimento', exact: true }).click();
+  await expect(page.getByText('Recebimento confirmado.', { exact: true })).toBeVisible();
 });

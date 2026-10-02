@@ -27,11 +27,19 @@ export function ErrorMessage({ error }) {
   );
 }
 
-export function SuccessMessage({ children }) {
+export function SuccessMessage({ children, icon = false, toast = false }) {
   if (!children) return null;
   return (
-    <div className="alert alert-success" role="status">
-      {children}
+    <div
+      className={`alert alert-success${toast ? ' feedback-toast' : ''}`}
+      role="status"
+    >
+      {icon ? (
+        <>
+          <span className="success-message-icon" aria-hidden="true">✓</span>
+          <span>{children}</span>
+        </>
+      ) : children}
     </div>
   );
 }

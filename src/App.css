@@ -288,6 +288,32 @@
   background: var(--green-soft);
 }
 
+.feedback-toast {
+  position: fixed;
+  z-index: 200;
+  top: max(16px, env(safe-area-inset-top));
+  left: 50%;
+  display: flex;
+  width: min(560px, calc(100% - 32px));
+  align-items: center;
+  gap: 10px;
+  transform: translateX(-50%);
+  box-shadow: 0 12px 30px rgba(14, 27, 50, 0.16);
+}
+
+.success-message-icon {
+  display: inline-grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: #16835c;
+  font-weight: 700;
+  line-height: 1;
+}
+
 .alert-warning {
   border-color: #f4d59e;
   color: #87500c;

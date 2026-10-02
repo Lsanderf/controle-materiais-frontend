@@ -225,7 +225,7 @@ export default function DashboardPage() {
                           <div>
                             <strong>{movement.material}</strong>
                             <span>
-                              {movement.funcionario || 'Estoque'} ·{' '}
+                              {movement.encarregado || movement.funcionario || 'Estoque'} ·{' '}
                               {movement.dataMovimentacao}
                             </span>
                             <span>

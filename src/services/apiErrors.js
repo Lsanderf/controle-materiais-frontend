@@ -23,6 +23,23 @@ export function safeErrorFields(fields) {
     .filter(([, value]) => safeErrorText(value, null) !== null));
 }
 
+function safeStockItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items.flatMap((item) => {
+    const material = safeErrorText(item?.material, null);
+    const validNumbers = ['materialId', 'disponivel', 'solicitado', 'faltante']
+      .every((field) => Number.isInteger(item?.[field]) && item[field] >= 0);
+    if (!material || !validNumbers || item.materialId === 0) return [];
+    return [{
+      materialId: item.materialId,
+      material,
+      disponivel: item.disponivel,
+      solicitado: item.solicitado,
+      faltante: item.faltante,
+    }];
+  });
+}
+
 export class ApiError extends Error {
   constructor(message, status, details = {}) {
     super(safeErrorText(message));
@@ -30,6 +47,8 @@ export class ApiError extends Error {
     this.status = status;
     this.fields = safeErrorFields(details.campos);
     this.requestId = safeErrorText(details.requestId, null) ?? undefined;
+    const isStockError = details.codigo === 'ESTOQUE_INSUFICIENTE';
+    const stockItems = isStockError ? safeStockItems(details.itens) : [];
     // Preserve the public API error contract without carrying diagnostic dumps.
     this.details = {
       ...(details.status !== undefined && { status: details.status }),
@@ -38,6 +57,8 @@ export class ApiError extends Error {
       ...(typeof details.message === 'string' && { message: safeErrorText(details.message) }),
       ...(details.campos && { campos: this.fields }),
       ...(this.requestId && { requestId: this.requestId }),
+      ...(isStockError && { codigo: details.codigo }),
+      ...(stockItems.length > 0 && { itens: stockItems }),
     };
   }
 }

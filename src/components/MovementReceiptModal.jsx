@@ -94,6 +94,11 @@ function EvidenceTechnicalDetails({ evidence }) {
 
 function EvidencePreview({ evidence }) {
   const isPhoto = evidence.tipo === 'FOTO_DEVOLUCAO';
+  const isWithdrawalSignature = evidence.tipo === 'ASSINATURA_RETIRADA';
+  const isEncarregadoSignature = isWithdrawalSignature || Boolean(evidence.encarregado);
+  const signer = isWithdrawalSignature
+    ? evidence.encarregadoAssinante
+    : evidence.encarregado ?? evidence.funcionario;
   const [imageUrl, setImageUrl] = useState('');
   const [error, setError] = useState(null);
 
@@ -126,7 +131,13 @@ function EvidencePreview({ evidence }) {
     <div className="receipt-evidence">
       <div className="receipt-evidence-heading">
         <div>
-          <strong>{isPhoto ? 'Foto do material devolvido' : 'Assinatura do funcionário'}</strong>
+          <strong>
+            {isPhoto
+              ? 'Foto do material devolvido'
+              : isEncarregadoSignature
+                ? 'Assinatura do encarregado'
+                : 'Assinatura do funcionário'}
+          </strong>
           <small>{formatDateTime(evidence.dataEvidencia) ?? 'Data não informada'}</small>
         </div>
         <span className="receipt-evidence-status">Registrada</span>
@@ -136,7 +147,7 @@ function EvidencePreview({ evidence }) {
         <img
           className={isPhoto ? 'receipt-return-photo' : 'receipt-signature'}
           src={imageUrl}
-          alt={isPhoto ? 'Material devolvido' : `Assinatura de ${evidence.funcionario?.nome ?? 'funcionário'}`}
+          alt={isPhoto ? 'Material devolvido' : `Assinatura de ${signer?.nome ?? 'responsável'}`}
         />
       ) : error ? (
         <p className="muted">Não foi possível carregar {isPhoto ? 'a foto do material' : 'a imagem da assinatura'}.</p>
@@ -148,13 +159,20 @@ function EvidencePreview({ evidence }) {
 
       <dl className="receipt-meta-list">
         <div>
-          <dt>Funcionário</dt>
-          <dd>{evidence.funcionario?.nome ?? 'Não informado'}</dd>
+          <dt>{isEncarregadoSignature ? 'Assinado por' : 'Funcionário'}</dt>
+          <dd>{signer?.nome ?? 'Não informado'}</dd>
         </div>
-        <div>
-          <dt>Anexada por</dt>
-          <dd>{evidence.registradaPor?.username ?? 'Não informado'}</dd>
-        </div>
+        {isEncarregadoSignature ? (
+          <div>
+            <dt>Data da assinatura</dt>
+            <dd>{formatDateTime(evidence.dataEvidencia) ?? 'Não informada'}</dd>
+          </div>
+        ) : (
+          <div>
+            <dt>Anexada por</dt>
+            <dd>{evidence.registradaPor?.username ?? 'Não informado'}</dd>
+          </div>
+        )}
       </dl>
 
       <p className="receipt-integrity" role="status">
@@ -215,10 +233,18 @@ function NotaFiscalEvidence({ notaFiscal, onNavigate }) {
 
 function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
   const isReversal = ['ESTORNO_RETIRADA', 'ESTORNO_DEVOLUCAO'].includes(receipt.tipo);
-  const signature = receipt.evidencias?.find(
+  const legacySignature = receipt.evidencias?.find(
     (evidence) => evidence.tipo === 'ASSINATURA',
   );
-  const mayAddSignature = canAddSignature(receipt, role);
+  const withdrawalSignature = receipt.assinaturaRetirada
+    ? {
+        ...receipt.assinaturaRetirada,
+        tipo: 'ASSINATURA_RETIRADA',
+        dataEvidencia: receipt.assinaturaRetirada.dataAssinatura,
+      }
+    : null;
+  const signature = withdrawalSignature ?? legacySignature;
+  const mayAddSignature = !receipt.solicitacaoRetiradaId && canAddSignature(receipt, role);
   const photo = receipt.tipo === 'DEVOLUCAO'
     ? receipt.evidencias?.find((evidence) => evidence.tipo === 'FOTO_DEVOLUCAO')
     : null;
@@ -269,13 +295,31 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
       <section className="receipt-section">
         <h3>Responsáveis e vínculo</h3>
         <dl className="receipt-grid">
-          <div>
-            <dt>Funcionário</dt>
-            <dd>
-              {receipt.funcionario?.nome ?? 'Não aplicável'}
-              {receipt.funcionario?.cargo && <small>{receipt.funcionario.cargo}</small>}
-            </dd>
-          </div>
+          {receipt.solicitacaoRetiradaId ? (
+            <>
+              <div>
+                <dt>Operador responsável</dt>
+                <dd>{receipt.operadorResponsavel?.nome ?? 'Não informado'}</dd>
+              </div>
+              <div>
+                <dt>Encarregado que assinou</dt>
+                <dd>{receipt.encarregadoAssinante?.nome ?? 'Não informado'}</dd>
+              </div>
+            </>
+          ) : receipt.encarregadoAssinante ? (
+            <div>
+              <dt>Encarregado</dt>
+              <dd>{receipt.encarregadoAssinante.nome}</dd>
+            </div>
+          ) : (
+            <div>
+              <dt>Funcionário</dt>
+              <dd>
+                {receipt.funcionario?.nome ?? 'Não aplicável'}
+                {receipt.funcionario?.cargo && <small>{receipt.funcionario.cargo}</small>}
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Contrato</dt>
             <dd>
@@ -283,13 +327,15 @@ function ReceiptContent({ receipt, onNavigate, role, onAddSignature }) {
               {receipt.contrato?.descricao && <small>{receipt.contrato.descricao}</small>}
             </dd>
           </div>
-          <div>
-            <dt>Registrado por</dt>
-            <dd>
-              {receipt.registradoPor?.username ?? 'Não informado'}
-              {receipt.registradoPor?.id && <small>ID {receipt.registradoPor.id}</small>}
-            </dd>
-          </div>
+          {!receipt.solicitacaoRetiradaId && (
+            <div>
+              <dt>Registrado por</dt>
+              <dd>
+                {receipt.registradoPor?.username ?? 'Não informado'}
+                {receipt.registradoPor?.id && <small>ID {receipt.registradoPor.id}</small>}
+              </dd>
+            </div>
+          )}
           <div>
             <dt>Versão do comprovante</dt>
             <dd>

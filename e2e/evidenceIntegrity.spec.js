@@ -60,7 +60,7 @@ async function openReceipt(page) {
   return dialog;
 }
 
-for (const role of ['OPERADOR', 'CONSULTA']) {
+for (const role of ['ADMIN', 'OPERADOR']) {
   test(`${role}: comprovante prioriza evidências e permite abrir detalhes e copiar cada hash completo`, async ({ page }) => {
     const api = await setup(page, role);
     const dialog = await openReceipt(page);
@@ -102,6 +102,44 @@ for (const role of ['OPERADOR', 'CONSULTA']) {
     expect(api.writes).toEqual([]);
   });
 }
+
+test('retirada nova mostra a assinatura da solicitação e os responsáveis no comprovante', async ({ page }) => {
+  const api = await setup(page);
+  api.receipt = {
+    id: 42,
+    tipo: 'RETIRADA',
+    quantidade: 3,
+    versao: 1,
+    dataMovimentacao: RECORDED_AT,
+    material: { id: 1, nome: 'Cabo óptico' },
+    contrato: { id: 1, nome: 'Contrato A' },
+    registradoPor: { id: 7, username: 'operador' },
+    solicitacaoRetiradaId: 19,
+    operadorResponsavel: { id: 7, nome: 'Operador Carlos' },
+    encarregadoAssinante: { id: 8, nome: 'Encarregada Ana' },
+    evidencias: [],
+    assinaturaRetirada: {
+      encarregadoAssinante: { id: 8, nome: 'Encarregada Ana' },
+      dataAssinatura: RECORDED_AT,
+      contentType: 'image/png',
+      tamanhoBytes: IMAGE.length,
+      sha256: SIGNATURE_HASH,
+      urlArquivo: '/movimentacoes/42/assinatura-retirada/arquivo',
+    },
+  };
+
+  await page.goto('/movimentacoes/historico');
+  await page.getByRole('button', { name: 'Ver comprovante', exact: true }).first().click();
+  const dialog = page.getByRole('dialog', { name: 'Comprovante de movimentação' });
+
+  await expect(dialog.getByText('Operador responsável', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Operador Carlos', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Encarregado que assinou', { exact: true })).toBeVisible();
+  await expect(dialog.getByText('Encarregada Ana', { exact: true })).toHaveCount(2);
+  await expect(dialog.getByText('Data da assinatura', { exact: true })).toBeVisible();
+  await expect(dialog.getByRole('img', { name: 'Assinatura de Encarregada Ana', exact: true })).toBeVisible();
+  await expect(dialog.getByText('Registro histórico sem assinatura', { exact: true })).toHaveCount(0);
+});
 
 test('hash armazenado não confirma integridade enquanto o download está pendente', async ({ page }) => {
   const api = await setup(page);
@@ -169,7 +207,7 @@ for (const clipboardState of ['indisponível', 'negada']) {
 
 test('hash de 64 caracteres fica recolhido e não provoca rolagem horizontal em 320 px', async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 740 });
-  await setup(page, 'CONSULTA');
+  await setup(page, 'OPERADOR');
   const dialog = await openReceipt(page);
   for (const card of await dialog.locator('.receipt-evidence').all()) {
     await expect(card.locator('code')).toBeHidden();

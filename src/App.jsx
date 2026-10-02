@@ -10,6 +10,9 @@ import ContractsPage from './pages/ContractsPage';
 import ContractFormPage from './pages/ContractFormPage';
 import MovementsPage from './pages/MovementsPage';
 import MovementFormPage from './pages/MovementFormPage';
+import WithdrawalRequestFormPage from './pages/WithdrawalRequestFormPage';
+import WithdrawalRequestsPage from './pages/WithdrawalRequestsPage';
+import WithdrawalRequestDetailPage from './pages/WithdrawalRequestDetailPage';
 import HistoryPage from './pages/HistoryPage';
 import NotasFiscaisPage from './pages/NotasFiscaisPage';
 import NotaFiscalFormPage from './pages/NotaFiscalFormPage';
@@ -55,7 +58,7 @@ export default function App() {
             <Route path="/movimentacoes/historico" element={<HistoryPage />} />
             <Route
               path="/movimentacoes/retirada"
-              element={<MovementFormPage key="RETIRADA" type="RETIRADA" />}
+              element={<WithdrawalRequestFormPage />}
             />
             <Route
               path="/movimentacoes/devolucao"
@@ -63,7 +66,12 @@ export default function App() {
             />
           </Route>
 
-          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE', 'ENCARREGADO']} />}>
+          <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR', 'ENCARREGADO']} />}>
+            <Route path="/solicitacoes-retirada" element={<WithdrawalRequestsPage />} />
+            <Route path="/solicitacoes-retirada/:id" element={<WithdrawalRequestDetailPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute roles={['ADMIN', 'GERENTE', 'ENCARREGADO', 'OPERADOR']} />}>
             <Route path="/requisicoes" element={<RequisicoesPage />} />
             <Route path="/requisicoes/:id" element={<RequisicaoDetailPage />} />
           </Route>

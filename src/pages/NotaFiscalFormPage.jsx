@@ -55,6 +55,7 @@ export default function NotaFiscalFormPage() {
   const [importingXml, setImportingXml] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState('');
+  const [materialFeedback, setMaterialFeedback] = useState(null);
   const [scannerOpen, setScannerOpen] = useState(false);
   const [materialCreationItem, setMaterialCreationItem] = useState(null);
   const xmlInputRef = useRef(null);
@@ -86,6 +87,12 @@ export default function NotaFiscalFormPage() {
       active = false;
     };
   }, [editing, id]);
+
+  useEffect(() => {
+    if (!materialFeedback) return undefined;
+    const timeoutId = window.setTimeout(() => setMaterialFeedback(null), 3_000);
+    return () => window.clearTimeout(timeoutId);
+  }, [materialFeedback]);
 
   const clientError = useMemo(() => validateNotaFiscalForm(form), [form]);
   const accessKeyCheckDigitError = useMemo(
@@ -152,7 +159,8 @@ export default function NotaFiscalFormPage() {
     });
     setMaterialCreationItem(null);
     setError(null);
-    setSuccess('Material criado e associado ao item.');
+    setSuccess('');
+    setMaterialFeedback({ message: 'Material adicionado com sucesso' });
   }
 
   function removeItem(index) {
@@ -250,6 +258,10 @@ export default function NotaFiscalFormPage() {
           <p>Cadastre os dados da NF de Entrada e seus itens em rascunho.</p>
         </div>
       </header>
+
+      <SuccessMessage icon toast>
+        {materialFeedback?.message}
+      </SuccessMessage>
 
       <form className="content-card form-card" onSubmit={handleSubmit}>
         <ErrorMessage error={error} />

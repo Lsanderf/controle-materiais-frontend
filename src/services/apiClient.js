@@ -49,9 +49,14 @@ async function readBlobResponse(response) {
   const contentType = response.headers.get('Content-Type') ?? '';
   if (/html|json|text\//i.test(contentType)) throw unexpectedResponse(response.status);
   const blob = await response.blob();
-  // Missing/mislabelled Content-Type must not turn a proxy error page into a file.
-  const prefix = await blob.slice(0, 1024).text();
-  if (!blob.size || !safeErrorText(prefix, null) || /^\s*[[{]/.test(prefix)) {
+  // Validate the binary signature as well as Content-Type so a mislabeled
+  // proxy response cannot be rendered as evidence.
+  const header = new Uint8Array(await blob.slice(0, 8).arrayBuffer());
+  const isPng = header.length >= 8
+    && [137, 80, 78, 71, 13, 10, 26, 10].every((byte, index) => header[index] === byte);
+  const isJpeg = header.length >= 3
+    && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+  if (!blob.size || (!isPng && !isJpeg)) {
     throw unexpectedResponse(response.status);
   }
   return blob;

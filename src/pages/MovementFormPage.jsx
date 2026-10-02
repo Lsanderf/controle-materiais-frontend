@@ -33,7 +33,7 @@ export default function MovementFormPage({ type }) {
   const initialMaterial = searchParams.get('material') ?? '';
   const [form, setForm] = useState({
     materialId: initialMaterial,
-    funcionarioId: '',
+    encarregadoId: '',
     contratoId: '',
     quantidade: '',
     observacao: '',
@@ -55,9 +55,6 @@ export default function MovementFormPage({ type }) {
     () =>
       Promise.all([
         materialService.list(),
-        // Migração pendente: a origem já é de encarregados, mas o contrato de
-        // movimentações ainda exige funcionarioId e byFuncionario. Esses nomes
-        // devem mudar juntos com o serviço e os consumidores dos responses.
         usuarioService.listEncarregados(),
         contratoService.list(),
       ]),
@@ -78,7 +75,7 @@ export default function MovementFormPage({ type }) {
     (material) => String(material.id) === form.materialId,
   );
   const selectedEmployee = employees.find(
-    (employee) => String(employee.id) === form.funcionarioId,
+    (employee) => String(employee.id) === form.encarregadoId,
   );
   const selectedContract = contracts.find(
     (contract) => String(contract.id) === form.contratoId,
@@ -86,7 +83,7 @@ export default function MovementFormPage({ type }) {
   const quantity = Number(form.quantidade);
 
   useEffect(() => {
-    if (type !== 'DEVOLUCAO' || !form.funcionarioId) {
+    if (type !== 'DEVOLUCAO' || !form.encarregadoId) {
       setEmployeeMovements([]);
       setBalanceLoading(false);
       setBalanceError(null);
@@ -97,7 +94,7 @@ export default function MovementFormPage({ type }) {
     setBalanceLoading(true);
     setBalanceError(null);
     movimentacaoService
-      .byFuncionario(form.funcionarioId)
+      .byEncarregado(form.encarregadoId)
       .then((movements) => {
         if (active) setEmployeeMovements(movements);
       })
@@ -114,7 +111,7 @@ export default function MovementFormPage({ type }) {
     return () => {
       active = false;
     };
-  }, [form.funcionarioId, type, balanceReload]);
+  }, [form.encarregadoId, type, balanceReload]);
 
   const returnBalance = useMemo(() => {
     if (type !== 'DEVOLUCAO' || !selectedMaterial || !selectedContract || balanceLoading || balanceError) return null;
@@ -126,7 +123,7 @@ export default function MovementFormPage({ type }) {
   }, [employeeMovements, selectedContract, selectedMaterial, type, balanceLoading, balanceError]);
 
   const clientError = useMemo(() => {
-    if (!form.funcionarioId)
+    if (!form.encarregadoId)
       return type === 'RETIRADA'
         ? 'Selecione um encarregado ativo.'
         : 'Selecione um encarregado existente.';
@@ -156,7 +153,7 @@ export default function MovementFormPage({ type }) {
     return '';
   }, [
     form.contratoId,
-    form.funcionarioId,
+    form.encarregadoId,
     form.materialId,
     form.observacao,
     quantity,
@@ -193,7 +190,7 @@ export default function MovementFormPage({ type }) {
     setError(null);
     try {
       const movement = await movimentacaoService.create({
-        funcionarioId: Number(form.funcionarioId),
+        encarregadoId: Number(form.encarregadoId),
         contratoId: Number(form.contratoId),
         materialId: Number(form.materialId),
         quantidade: quantity,
@@ -216,7 +213,7 @@ export default function MovementFormPage({ type }) {
       ]);
       setForm({
         materialId: '',
-        funcionarioId: '',
+        encarregadoId: '',
         contratoId: '',
         quantidade: '',
         observacao: '',
@@ -292,8 +289,8 @@ export default function MovementFormPage({ type }) {
             <label className="field">
               <span>Encarregado</span>
               <select
-                value={form.funcionarioId}
-                onChange={(event) => change('funcionarioId', event.target.value)}
+                value={form.encarregadoId}
+                onChange={(event) => change('encarregadoId', event.target.value)}
                 required
               >
                 <option value="">Selecione</option>

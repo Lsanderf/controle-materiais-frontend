@@ -166,10 +166,10 @@ export default function HistoryPage() {
                     <dt>Quantidade</dt>
                     <dd>{movement.quantidade} un.</dd>
                   </div>
-                  {movement.funcionario && (
+                  {(movement.encarregado || movement.funcionario) && (
                     <div>
-                      <dt>Funcionário</dt>
-                      <dd>{movement.funcionario}</dd>
+                      <dt>{movement.encarregado ? 'Encarregado' : 'Funcionário'}</dt>
+                      <dd>{movement.encarregado || movement.funcionario}</dd>
                     </div>
                   )}
                   {movement.contrato && (
@@ -234,7 +234,7 @@ export default function HistoryPage() {
                   <th>Tipo</th>
                   <th>Material</th>
                   <th className="number-cell">Quantidade</th>
-                  <th>Funcionário</th>
+                  <th>Responsável</th>
                   <th>Contrato</th>
                   <th>Registrado por</th>
                   <th>Ações</th>
@@ -260,7 +260,7 @@ export default function HistoryPage() {
                       )}
                     </td>
                     <td className="number-cell">{movement.quantidade} un.</td>
-                    <td>{movement.funcionario || '—'}</td>
+                    <td>{movement.encarregado || movement.funcionario || '—'}</td>
                     <td>{movement.contrato || '—'}</td>
                     <td>
                       {movement.usuarioUsername ? (
