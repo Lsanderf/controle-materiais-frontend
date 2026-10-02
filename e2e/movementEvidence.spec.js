@@ -32,6 +32,9 @@ async function setup(page, role = 'OPERADOR') {
       const signatureBytes = Buffer.from(await signature.arrayBuffer());
       const photo = parts.get('foto');
       api.posts.push({ movement, signature, signatureBytes, photo, authorization: request.headers().authorization });
+      if (movement.tipo === 'DEVOLUCAO' && !photo) {
+        return route.fulfill({ status: 409, json: { erro: 'O arquivo da foto é obrigatório' } });
+      }
       if (api.failure) return api.failure(route);
       if (api.gate) await api.gate;
       if (api.error) return route.fulfill({ status: 409, json: { erro: api.error } });
@@ -47,7 +50,9 @@ async function setup(page, role = 'OPERADOR') {
       }];
       api.files.set(evidencias[0].urlArquivo, { body: signatureBytes, contentType: signature.type });
       if (photo) {
-        evidencias.push({ id: 12, tipo: 'FOTO_DEVOLUCAO', urlArquivo: '/movimentacoes/42/evidencias/12/arquivo' });
+        evidencias.push({ ...evidencias[0], id: 12, tipo: 'FOTO_DEVOLUCAO',
+          nomeArquivo: photo.name, contentType: photo.type, tamanhoBytes: photo.size,
+          urlArquivo: '/movimentacoes/42/evidencias/12/arquivo' });
         api.files.set(evidencias[1].urlArquivo, {
           body: Buffer.from(await photo.arrayBuffer()), contentType: photo.type,
         });
@@ -124,10 +129,21 @@ for (const type of ['DEVOLUCAO']) {
     expect(api.posts).toEqual([]);
   });
 
-  test(`${type}: assinatura permite confirmar sem foto e sucesso limpa o formulário`, async ({ page }) => {
+  test(`${type}: sem foto informa a obrigatoriedade e não envia a movimentação`, async ({ page }) => {
     const api = await setup(page);
     await fill(page, type);
-    if (type === 'RETIRADA') await expect(signatureDialog(page).getByText('Foto do material (opcional)', { exact: true })).toHaveCount(0);
+    await draw(page);
+    await signatureDialog(page).getByRole('button', { name: `Confirmar ${label}`, exact: true }).click();
+    await expect(signatureDialog(page).getByRole('alert')).toContainText('Adicione uma foto da devolução antes de confirmar.');
+    expect(api.posts).toEqual([]);
+    expect(api.writes).toEqual([]);
+    expect(api.stock).toBe(10);
+  });
+
+  test(`${type}: assinatura e foto permitem confirmar e sucesso limpa o formulário`, async ({ page }) => {
+    const api = await setup(page);
+    await fill(page, type);
+    await selectPhoto(page);
     await draw(page);
     await signatureDialog(page).getByRole('button', { name: `Confirmar ${label}`, exact: true }).click();
     await expect(signatureDialog(page)).toHaveCount(0);
@@ -135,7 +151,7 @@ for (const type of ['DEVOLUCAO']) {
     await expect(receipt.getByRole('img', { name: /^Assinatura/ })).toBeVisible();
     await expect(receipt.getByRole('button', { name: 'Adicionar assinatura', exact: true })).toHaveCount(0);
     await expect(receipt.getByText('Encarregado', { exact: true })).toBeVisible();
-    await expect(receipt.getByText(EMPLOYEE.nome, { exact: true })).toHaveCount(2);
+    await expect(receipt.getByText(EMPLOYEE.nome, { exact: true })).toHaveCount(3);
     await expect(receipt.getByText(/Funcion.rio/, { exact: true })).toHaveCount(0);
     expect(api.writes).toEqual(['/movimentacoes']);
     expect(api.posts[0].authorization).toBe('Bearer test-token');
@@ -145,7 +161,7 @@ for (const type of ['DEVOLUCAO']) {
     expect(signatureDownloads.length).toBeGreaterThan(0);
     for (const download of signatureDownloads) expect(download.body).toEqual(api.posts[0].signatureBytes);
     expect(api.files.get('/movimentacoes/42/evidencias/11/arquivo').body).toEqual(api.posts[0].signatureBytes);
-    expect(api.posts[0].photo).toBe(null);
+    expect(Buffer.from(await api.posts[0].photo.arrayBuffer())).toEqual(PHOTO);
     expect(api.posts[0].movement).toMatchObject({ tipo: type, quantidade: 3, observacao: 'Entrega revisada' });
     await receipt.getByRole('button', { name: 'Fechar', exact: true }).click();
     await expect(page.getByLabel(/^Quantidade/)).toHaveValue('');
@@ -168,8 +184,12 @@ test('devolução oferece galeria/câmera, prévia, substituição e remoção a
   await expect(dialog.getByRole('img')).toHaveCount(0);
   await draw(page);
   await dialog.getByRole('button', { name: 'Confirmar devolução', exact: true }).click();
+  await expect(dialog.getByRole('alert')).toContainText('Adicione uma foto da devolução antes de confirmar.');
+  expect(api.posts).toEqual([]);
+  await selectPhoto(page);
+  await dialog.getByRole('button', { name: 'Confirmar devolução', exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  expect(api.posts[0].photo).toBe(null);
+  expect(Buffer.from(await api.posts[0].photo.arrayBuffer())).toEqual(PHOTO);
 });
 
 test('foto enviada aparece no comprovante e é limpa para a próxima devolução', async ({ page }) => {
@@ -183,6 +203,9 @@ test('foto enviada aparece no comprovante e é limpa para a próxima devolução
   await expect(receipt.getByRole('img', { name: /^Assinatura/ })).toBeVisible();
   expect(api.posts[0].photo.type).toBe('image/png');
   expect(Buffer.from(await api.posts[0].photo.arrayBuffer())).toEqual(PHOTO);
+  const photoDownloads = api.downloads.filter(({ path }) => path.endsWith('/evidencias/12/arquivo'));
+  expect(photoDownloads.length).toBeGreaterThan(0);
+  for (const download of photoDownloads) expect(download.body).toEqual(PHOTO);
   await receipt.getByRole('button', { name: 'Fechar', exact: true }).click();
   await page.getByRole('combobox', { name: 'Encarregado', exact: true }).selectOption('1');
   await page.getByRole('combobox', { name: 'Contrato', exact: true }).selectOption('1');
@@ -302,6 +325,7 @@ test('envio pendente bloqueia reenvio e cancelamento', async ({ page }) => {
   let finish;
   api.gate = new Promise((resolve) => { finish = resolve; });
   await fill(page);
+  await selectPhoto(page);
   await draw(page);
   try {
     await signatureDialog(page).getByRole('button', { name: 'Confirmar devolução', exact: true }).click();

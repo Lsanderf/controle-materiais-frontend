@@ -336,6 +336,20 @@ test('ENCARREGADO destinatário confirma uma vez e o comprovante devolve exatame
   expect(api.signatures.values().next().value.body).toEqual(api.sentSignature);
 });
 
+test('ENCARREGADO não consegue confirmar solicitação pendente sem desenhar assinatura', async ({ page }) => {
+  const api = await setup(page);
+  api.seedRequest();
+  await authenticate(page, 'ENCARREGADO', 'ana');
+  await page.goto('/solicitacoes-retirada/1');
+  await page.getByRole('button', { name: 'Assinar e confirmar', exact: true }).click();
+
+  const dialog = page.getByRole('dialog', { name: 'Assinatura do responsável' });
+  await expect(dialog.getByRole('button', { name: 'Confirmar retirada', exact: true })).toBeDisabled();
+  expect(api.confirmAttempts).toBe(0);
+  expect(api.requests[0].status).toBe('AGUARDANDO_ASSINATURA');
+  expect(api.movements).toEqual([]);
+});
+
 test('outro ENCARREGADO não lista nem confirma solicitação alheia', async ({ page }) => {
   const api = await setup(page);
   api.seedRequest();

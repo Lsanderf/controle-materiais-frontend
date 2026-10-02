@@ -185,6 +185,10 @@ export default function MovementFormPage({ type }) {
       setError(new Error(clientError));
       return;
     }
+    if (type === 'DEVOLUCAO' && !photo) {
+      setError(new Error('Adicione uma foto da devolução antes de confirmar.'));
+      return;
+    }
     submittingRef.current = true;
     setSaving(true);
     setError(null);
@@ -450,7 +454,7 @@ export default function MovementFormPage({ type }) {
         </dl>
         }
       >
-        {type === 'DEVOLUCAO' && <ReturnPhotoPicker file={photo} onChange={setPhoto} disabled={saving} />}
+        {type === 'DEVOLUCAO' && <ReturnPhotoPicker file={photo} onChange={(file) => { setPhoto(file); setError(null); }} disabled={saving} />}
       </SignaturePad>
       )}
 
