@@ -61,7 +61,8 @@ test('GERENTE acessa o formulário para criar contratos', async ({ page }) => {
 test('ENCARREGADO vê requisições recebidas, contador pendente e conclui uma solicitação', async ({ page }) => {
   let status = 'PENDENTE';
   const requisicao = () => ({
-    id: 42, tipo: 'RETIRADA', status, criadaEm: '2026-09-24T10:30:00',
+    id: 42, origem: 'MANUAL', tipo: 'RETIRADA', status, criadaEm: '2026-09-24T10:30:00',
+    podeMarcarVisualizada: status === 'PENDENTE', podeAlterar: false,
     gerenteSolicitante: { id: 1, nome: 'Gerente Ana' }, encarregadoDestinatario: { id: 2, nome: 'Encarregado João' },
     contrato: { id: 3, nome: 'Obra Central' }, itens: [
       { id: 4, descricao: 'Parafuso', quantidade: 10 },
@@ -85,6 +86,7 @@ test('ENCARREGADO vê requisições recebidas, contador pendente e conclui uma s
   await expect(receivedRequests.getByText('1 pendentes', { exact: true })).toBeVisible();
   await receivedRequests.click();
   await page.getByRole('link', { name: /Ver detalhes/ }).click();
+  await expect(page.getByText('Visualizada', { exact: true })).toBeVisible();
   await expect(page.getByText('Parafuso x10', { exact: true })).toBeVisible();
   await expect(page.getByText('Capacete x5', { exact: true })).toBeVisible();
   await expect(page.getByText('Luvas M x5', { exact: true })).toBeVisible();
