@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import {
@@ -20,9 +20,23 @@ import {
 export default function RequisicaoDetailPage() {
   const { id } = useParams();
   const { role } = useAuth();
+  const visualizacao = useRef(null);
 
   const loader = useCallback(
-      () => requisicaoService.get(id),
+      async () => {
+        const atual = await requisicaoService.get(id);
+        if (atual.status === 'PENDENTE' && atual.podeMarcarVisualizada) {
+          if (visualizacao.current?.id !== id) {
+            const promise = requisicaoService.visualizar(id).catch((requestError) => {
+              visualizacao.current = null;
+              throw requestError;
+            });
+            visualizacao.current = { id, promise };
+          }
+          return visualizacao.current.promise;
+        }
+        return atual;
+      },
       [id]
   );
 
@@ -37,6 +51,74 @@ export default function RequisicaoDetailPage() {
   const [actionError, setActionError] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [saving, setSaving] = useState(false);
+  const [edicao, setEdicao] = useState(null);
+
+  function iniciarEdicao() {
+    setActionError(null);
+    setFeedback('');
+    setEdicao({ versao: requisicao.versao, observacao: requisicao.observacao ?? '',
+      originais: requisicao.itens.map((item) => ({ ...item })),
+      itens: requisicao.itens.map((item) => ({ id: item.id, descricao: item.descricao, quantidade: String(item.quantidade) })),
+    });
+  }
+
+  function alterarItem(index, campo, valor) {
+    setEdicao((atual) => ({ ...atual, itens: atual.itens.map((item, posicao) => (
+      posicao === index ? { ...item, [campo]: valor } : item
+    )) }));
+  }
+
+  async function salvarEdicao(event) {
+    event.preventDefault();
+    if (saving || !edicao) return;
+    if (edicao.itens.length === 0) {
+      setActionError(new Error('Informe ao menos um item.'));
+      return;
+    }
+    if (edicao.itens.length > 100 || edicao.observacao.length > 1000 || edicao.itens.some((item) => (
+      !item.descricao.trim() || item.descricao.length > 255 || !Number.isInteger(Number(item.quantidade))
+      || Number(item.quantidade) < 1 || Number(item.quantidade) > 10000
+    ))) {
+      setActionError(new Error('Confira a descrição, a quantidade e os limites dos itens e da observação.'));
+      return;
+    }
+    const itensAlterados = {};
+    const novosItens = [];
+    for (const item of edicao.itens) {
+      const conteudo = { descricao: item.descricao.trim(), quantidade: Number(item.quantidade) };
+      if (item.id == null) novosItens.push(conteudo);
+      else {
+        const original = edicao.originais.find((anterior) => anterior.id === item.id);
+        if (conteudo.descricao !== original.descricao || conteudo.quantidade !== original.quantidade) {
+          itensAlterados[item.id] = conteudo;
+        }
+      }
+    }
+    const itensRemovidos = edicao.originais.filter((item) => !edicao.itens.some((atual) => atual.id === item.id)).map((item) => item.id);
+    setSaving(true);
+    setActionError(null);
+    setFeedback('');
+    try {
+      const atualizada = await requisicaoService.alterar(requisicao.id, {
+        versao: edicao.versao, observacao: edicao.observacao.trim() || null, itensAlterados, novosItens, itensRemovidos,
+      });
+      setRequisicao(atualizada);
+      setEdicao(null);
+      setFeedback('Requisição atualizada com sucesso.');
+    } catch (requestError) {
+      setActionError(requestError);
+      if (requestError.status === 409) {
+        setEdicao(null);
+        try {
+          await reload();
+        } catch {
+          setActionError(new Error(`${requestError.message} Não foi possível carregar os dados atuais. Tente novamente.`));
+        }
+      }
+    } finally {
+      setSaving(false);
+    }
+  }
 
   async function runAction(action, successMessage) {
     if (saving || !requisicao) {
@@ -82,15 +164,9 @@ export default function RequisicaoDetailPage() {
     return null;
   }
 
-  /*
-   * O encarregado somente confirma o recebimento depois
-   * que o operador realizou/finalizou o atendimento.
-   *
-   * PENDENTE -> nenhum botão de confirmação
-   * AGUARDANDO_CONFIRMACAO -> pode confirmar
-   * CONCLUIDA -> somente consulta
-   */
   const isFaltaEstoque = requisicao.origem === 'FALTA_ESTOQUE';
+  const canAlterar = role === 'GERENTE' && requisicao.podeAlterar
+      && requisicao.origem === 'MANUAL' && requisicao.tipo === 'RETIRADA' && requisicao.status === 'PENDENTE';
   const canConcluir =
       ((role === 'ENCARREGADO' && !isFaltaEstoque) ||
         (role === 'GERENTE' && isFaltaEstoque)) &&
@@ -141,6 +217,53 @@ export default function RequisicaoDetailPage() {
         <ErrorMessage
             error={actionError}
         />
+
+        {error && requisicao && <ErrorMessage error={error} />}
+
+        {edicao && (
+          <form className="content-card form-card" onSubmit={salvarEdicao}>
+            <h2>Alterar requisição</h2>
+            <fieldset disabled={saving} className="requisicao-items">
+              <legend>Itens da requisição</legend>
+              {edicao.itens.map((item, index) => (
+                <div className="requisicao-item-row" key={item.id ?? `novo-${index}`}>
+                  <label className="field">
+                    <span>Descrição do item {index + 1}</span>
+                    <input value={item.descricao} maxLength="255" required
+                      onChange={(event) => alterarItem(index, 'descricao', event.target.value)} />
+                  </label>
+                  <label className="field">
+                    <span>Quantidade do item {index + 1}</span>
+                    <input type="number" min="1" max="10000" step="1" value={item.quantidade} required
+                      onChange={(event) => alterarItem(index, 'quantidade', event.target.value)} />
+                  </label>
+                  <button type="button" className="text-button danger requisicao-remove" aria-label={`Remover item ${index + 1}`}
+                    onClick={() => setEdicao((atual) => ({ ...atual, itens: atual.itens.filter((_, posicao) => posicao !== index) }))}>
+                    Remover
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="text-button" disabled={edicao.itens.length >= 100}
+                onClick={() => setEdicao((atual) => ({ ...atual, itens: [...atual.itens, { descricao: '', quantidade: '' }] }))}>
+                + Adicionar item
+              </button>
+              <label className="field">
+                <span>Observação</span>
+                <textarea maxLength="1000" value={edicao.observacao}
+                  onChange={(event) => setEdicao((atual) => ({ ...atual, observacao: event.target.value }))} />
+              </label>
+            </fieldset>
+            <div className="form-actions">
+              <button type="button" className="button button-secondary" disabled={saving}
+                onClick={() => { setEdicao(null); setActionError(null); }}>
+                Cancelar edição
+              </button>
+              <button className="button button-primary" disabled={saving}>
+                {saving ? 'Salvando...' : 'Salvar alterações'}
+              </button>
+            </div>
+          </form>
+        )}
 
         <section className="content-card requisicao-detail">
           <dl>
@@ -202,8 +325,9 @@ export default function RequisicaoDetailPage() {
           )}
         </section>
 
-        {(canConcluir || canCancelar) && (
+        {!edicao && (canAlterar || canConcluir || canCancelar) && (
             <div className="page-actions">
+              {canAlterar && <button className="button button-primary" disabled={saving} onClick={iniciarEdicao}>Alterar</button>}
               {canCancelar && (
                   <button
                       className="button button-secondary"

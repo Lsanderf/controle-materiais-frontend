@@ -3,6 +3,7 @@ import { apiRequest } from './api';
 export const requisicaoService = {
   list: () => apiRequest('/requisicoes'),
   get: (id) => apiRequest(`/requisicoes/${id}`),
+  alterar: (id, conteudo) => apiRequest(`/requisicoes/${id}`, { method: 'PATCH', body: conteudo }),
   create: (requisicao) => apiRequest('/requisicoes', { method: 'POST', body: requisicao }),
   createFaltaEstoque: (requisicao) => apiRequest('/requisicoes/falta-estoque', { method: 'POST', body: requisicao }),
   visualizar: (id) => apiRequest(`/requisicoes/${id}/visualizar`, { method: 'PATCH' }),
