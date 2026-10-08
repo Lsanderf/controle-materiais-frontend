@@ -11,7 +11,8 @@ import { useResource } from '../hooks/useResource';
 import { materialService } from '../services/materialService';
 
 export default function MaterialsPage() {
-  const { role, hasAnyRole } = useAuth();
+  const { hasAnyRole } = useAuth();
+  const canManageMaterials = hasAnyRole('ADMIN', 'OPERADOR');
   const location = useLocation();
   const [search, setSearch] = useState('');
   const loader = useCallback(() => materialService.list(), []);
@@ -35,7 +36,7 @@ export default function MaterialsPage() {
           <h1>Materiais</h1>
           <p>Consulte o saldo atual e mantenha os itens organizados.</p>
         </div>
-        {hasAnyRole('ADMIN', 'OPERADOR') && (
+        {canManageMaterials && (
           <Link className="button button-primary" to="/materiais/novo">
             + Novo material
           </Link>
@@ -92,7 +93,7 @@ export default function MaterialsPage() {
                   </span>
                 </div>
                 <p>{material.descricao}</p>
-                {role === 'ADMIN' && (
+                {canManageMaterials && (
                   <div className="resource-actions">
                     <Link
                       className="button button-secondary"
@@ -113,7 +114,7 @@ export default function MaterialsPage() {
                   <th>Material</th>
                   <th>Descrição</th>
                   <th className="number-cell">Estoque</th>
-                  {role === 'ADMIN' && <th>Ações</th>}
+                  {canManageMaterials && <th>Ações</th>}
                 </tr>
               </thead>
               <tbody>
@@ -133,7 +134,7 @@ export default function MaterialsPage() {
                         {material.quantidadeEstoque} un.
                       </span>
                     </td>
-                    {role === 'ADMIN' && (
+                    {canManageMaterials && (
                       <td>
                         <Link
                           className="text-link"

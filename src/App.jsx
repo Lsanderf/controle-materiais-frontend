@@ -44,6 +44,10 @@ export default function App() {
           <Route element={<ProtectedRoute roles={['ADMIN', 'OPERADOR']} />}>
             <Route path="/materiais" element={<MaterialsPage />} />
             <Route path="/materiais/novo" element={<MaterialFormPage />} />
+            <Route
+              path="/materiais/:id/editar"
+              element={<MaterialFormPage />}
+            />
             <Route path="/notas-fiscais" element={<NotasFiscaisPage />} />
             <Route path="/notas-fiscais/:id" element={<NotaFiscalDetailPage />} />
             <Route path="/notas-fiscais/nova" element={<NotaFiscalFormPage />} />
@@ -77,10 +81,6 @@ export default function App() {
           </Route>
 
           <Route element={<ProtectedRoute roles={['ADMIN']} />}>
-            <Route
-              path="/materiais/:id/editar"
-              element={<MaterialFormPage />}
-            />
             <Route path="/usuarios" element={<UsersPage />} />
             <Route path="/usuarios/novo" element={<UserFormPage />} />
             <Route path="/usuarios/:id/editar" element={<UserFormPage />} />

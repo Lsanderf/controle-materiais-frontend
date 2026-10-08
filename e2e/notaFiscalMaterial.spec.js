@@ -344,28 +344,38 @@ for (const mode of ['manual', 'XML']) {
   });
 }
 
-test('OPERADOR pode cadastrar pela lista de materiais, mas não editar nem o próprio cadastro', async ({ page }) => {
-  const api = await setup(page, { role: 'OPERADOR' });
-  await page.goto('/materiais');
-  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
-  await page.getByRole('link', { name: '+ Novo material', exact: true }).click();
-  await expect(page).toHaveURL(/\/materiais\/novo$/);
-  await page.getByLabel('Nome', { exact: true }).fill('Material novo do operador');
-  await page.getByLabel('Descrição', { exact: true }).fill('Descrição do novo material');
-  await page.getByRole('button', { name: 'Cadastrar material' }).click();
-  await expect(page).toHaveURL(/\/materiais$/);
-  await expect(page.getByText('Material cadastrado com sucesso.', { exact: true })).toBeVisible();
-  await expect(page.getByRole('link', { name: 'Editar', exact: true })).toHaveCount(0);
-  expect(materialPosts(api)).toHaveLength(1);
-  expect(api.materials.at(-1)).toMatchObject({ nome: 'Material novo do operador', quantidadeEstoque: 0 });
-  for (const id of [7, 101]) {
-    await page.goto(`/materiais/${id}/editar`);
-    await expect(page).toHaveURL(/\/dashboard$/);
-    await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
-  }
-  expect(writes(api)).toEqual(materialPosts(api));
-  expect(api.materials[0]).toEqual(EXISTING_MATERIAL);
-});
+for (const role of ['ADMIN', 'OPERADOR']) {
+  test(`${role} vê Editar na listagem e salva nome e descrição do material`, async ({ page }) => {
+    const api = await setup(page, { role });
+    await page.goto('/materiais');
+    await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toBeVisible();
+    const editLink = page.getByRole('link', { name: 'Editar', exact: true });
+    await expect(editLink).toBeVisible();
+    await expect(editLink).toHaveAttribute('href', '/materiais/7/editar');
+    await expect(page.getByRole('link', { name: '+ Novo material', exact: true })).toBeVisible();
+    await editLink.click();
+    await expect(page).toHaveURL(/\/materiais\/7\/editar$/);
+    await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('Material existente');
+    await expect(page.getByLabel('Descrição', { exact: true })).toHaveValue('Descrição existente');
+    await expect(page.getByLabel(/quantidade|estoque/i)).toHaveCount(0);
+    await expect(page.locator('.material-form input, .material-form textarea')).toHaveCount(2);
+    await page.getByLabel('Nome', { exact: true }).fill('  Material atualizado  ');
+    await page.getByLabel('Descrição', { exact: true }).fill('  Descrição atualizada  ');
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(page.getByText('Material atualizado com sucesso.', { exact: true })).toBeVisible();
+    expect(writes(api)).toEqual([{
+      path: '/materiais/7', method: 'PUT',
+      body: { nome: 'Material atualizado', descricao: 'Descrição atualizada' },
+      authorization: 'Bearer test-token',
+    }]);
+    await page.getByRole('button', { name: 'Cancelar', exact: true }).click();
+    await expect(page).toHaveURL(/\/materiais$/);
+    const material = page.locator('.resource-card:visible, .desktop-table tbody tr:visible');
+    await expect(material).toContainText('Material atualizado');
+    await expect(material).toContainText('Descrição atualizada');
+    await expect(material).toContainText('8 un.');
+  });
+}
 
 for (const role of ['GERENTE', 'ENCARREGADO']) {
   test(`${role} permanece sem acesso à lista, cadastro ou edição de materiais`, async ({ page }) => {
@@ -373,10 +383,13 @@ for (const role of ['GERENTE', 'ENCARREGADO']) {
     for (const path of ['/materiais', '/materiais/novo', '/materiais/7/editar']) {
       await page.goto(path);
       await expect(page).toHaveURL(/\/dashboard$/);
+      await expect(page.getByRole('heading', { name: 'Materiais', exact: true })).toHaveCount(0);
+      await expect(page.locator('a[href^="/materiais"]')).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Cadastrar material' })).toHaveCount(0);
       await expect(page.getByRole('button', { name: 'Salvar alterações' })).toHaveCount(0);
     }
     expect(writes(api)).toEqual([]);
+    expect(api.calls.filter((call) => call.path.startsWith('/materiais'))).toEqual([]);
   });
 
   test(`${role} continua sem acesso a cadastro ou edição de NF`, async ({ page }) => {
@@ -397,21 +410,38 @@ test('NF confirmada continua bloqueada para edição e criação de material', a
   await expect(page.getByRole('button', { name: '+ Criar material', exact: true })).toHaveCount(0);
 });
 
-test('formulário compartilhado mantém cadastro e edição normais de material', async ({ page }) => {
-  const api = await setup(page);
-  await page.goto('/materiais/novo');
-  await page.getByLabel('Nome', { exact: true }).fill('  Material normal  ');
-  await page.getByLabel('Descrição', { exact: true }).fill('  Descrição normal  ');
-  await page.getByRole('button', { name: 'Cadastrar material' }).click();
-  await expect(page).toHaveURL(/\/materiais$/);
-  expect(materialPosts(api)[0].body).toEqual({ nome: 'Material normal', descricao: 'Descrição normal' });
-  await page.goto('/materiais/101/editar');
-  await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('Material normal');
-  await page.getByLabel('Nome', { exact: true }).fill('Material editado');
-  await page.getByRole('button', { name: 'Salvar alterações' }).click();
-  await expect(page.getByText('Material atualizado com sucesso.', { exact: true })).toBeVisible();
-  expect(api.materials.at(-1)).toMatchObject({ nome: 'Material editado', quantidadeEstoque: 0 });
-});
+for (const role of ['ADMIN', 'OPERADOR']) {
+  test(`${role} cria material e acessa diretamente a edição sem campo de estoque`, async ({ page }) => {
+    const api = await setup(page, { role });
+    await page.goto('/materiais');
+    await page.getByRole('link', { name: '+ Novo material', exact: true }).click();
+    await expect(page).toHaveURL(/\/materiais\/novo$/);
+    await expect(page.getByLabel(/quantidade|estoque/i)).toHaveCount(0);
+    await expect(page.locator('.material-form input, .material-form textarea')).toHaveCount(2);
+    await page.getByLabel('Nome', { exact: true }).fill('  Material normal  ');
+    await page.getByLabel('Descrição', { exact: true }).fill('  Descrição normal  ');
+    await page.getByRole('button', { name: 'Cadastrar material' }).click();
+    await expect(page).toHaveURL(/\/materiais$/);
+    await expect(page.getByText('Material cadastrado com sucesso.', { exact: true })).toBeVisible();
+    expect(materialPosts(api)).toHaveLength(1);
+    expect(materialPosts(api)[0].body).toEqual({ nome: 'Material normal', descricao: 'Descrição normal' });
+    await page.goto('/materiais/101/editar');
+    await expect(page).toHaveURL(/\/materiais\/101\/editar$/);
+    await expect(page.getByLabel('Nome', { exact: true })).toHaveValue('Material normal');
+    await expect(page.getByLabel('Descrição', { exact: true })).toHaveValue('Descrição normal');
+    await expect(page.getByLabel(/quantidade|estoque/i)).toHaveCount(0);
+    await expect(page.locator('.material-form input, .material-form textarea')).toHaveCount(2);
+    await page.getByLabel('Nome', { exact: true }).fill('Material editado');
+    await page.getByLabel('Descrição', { exact: true }).fill('Descrição editada');
+    await page.getByRole('button', { name: 'Salvar alterações' }).click();
+    await expect(page.getByText('Material atualizado com sucesso.', { exact: true })).toBeVisible();
+    expect(api.calls.filter((call) => call.method === 'PUT')).toEqual([{
+      path: '/materiais/101', method: 'PUT',
+      body: { nome: 'Material editado', descricao: 'Descrição editada' },
+      authorization: 'Bearer test-token',
+    }]);
+  });
+}
 
 test('modal mantém foco e ações acessíveis em viewport estreito com altura reduzida', async ({ page }) => {
   await setup(page);
